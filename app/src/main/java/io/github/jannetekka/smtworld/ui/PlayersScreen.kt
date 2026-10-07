@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -35,18 +36,17 @@ fun PlayersScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
     ) {
         item {
             SectionCard {
-                Text("Everyone vs SMT", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("Read straight from Solana", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Note("Every Clock In, from every player, also names one public address on Solana. This list is read " +
                     "straight from that address, with no server, and no call can be changed once it's on chain. Calls are " +
                     "graded on Binance or CoinGecko prices, never on what a memo says. A player is ranked after " +
                     "${Leaderboard.MIN_GRADED} graded calls; SMT's row uses the lean most players recorded for each coin and hour.")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { openUrl(DevnetRpc.explorerAddress(MemoTransaction.REGISTRY)) }, modifier = Modifier.focusRing()) {
-                        Text("See the address on Explorer")
-                    }
-                    OutlinedButton(onClick = { vm.refreshBoard() }, enabled = !s.boardLoading, modifier = Modifier.focusRing()) {
-                        Text(if (s.boardLoading) "Loading…" else "Refresh")
-                    }
+                // Stacked, not side by side: with large system fonts a row squeezed "Refresh" into one letter per line.
+                OutlinedButton(onClick = { vm.refreshBoard() }, enabled = !s.boardLoading, modifier = Modifier.fillMaxWidth().focusRing()) {
+                    Text(if (s.boardLoading) "Loading…" else "Refresh", maxLines = 1)
+                }
+                TextButton(onClick = { openUrl(DevnetRpc.explorerAddress(MemoTransaction.REGISTRY)) }, modifier = Modifier.focusRing()) {
+                    Text("See the address on Explorer", maxLines = 1)
                 }
             }
         }
@@ -64,20 +64,26 @@ private fun PlayerRow(rank: Int, r: Leaderboard.Row, me: String?) = SectionCard 
     val isSmt = r.player == Leaderboard.SMT
     val isMe = r.player == me
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (r.ranked) "#$rank" else "—", color = if (r.ranked) GoldSoft else Muted, fontWeight = FontWeight.Bold,
-            modifier = Modifier.width(48.dp))
+        if (r.ranked) Text("#$rank", color = GoldSoft, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp))
         Column(Modifier.weight(1f)) {
             Text(
                 when { isSmt -> "SMT (the AI)"; isMe -> "You · ${Format.shortAddr(r.player)}"; else -> Format.shortAddr(r.player) },
                 color = if (isSmt) Gold else Ink, fontWeight = FontWeight.SemiBold, maxLines = 1,
             )
             Text(
-                if (isSmt) "${r.right} right of ${r.graded} calls it leaned on"
-                else if (r.ranked) "${r.right} right of ${r.graded} graded · ${r.calls} calls"
-                else "${r.calls} calls · ${r.graded} graded (ranked from ${Leaderboard.MIN_GRADED})",
+                when {
+                    isSmt && r.graded == 0 -> "No graded calls yet: the first grades land 4 hours after a Clock In"
+                    isSmt -> "${r.right} right of ${r.graded} calls it leaned on"
+                    r.ranked -> "${r.right} right of ${r.graded} graded · ${plural(r.calls, "call")}"
+                    r.graded == 0 -> "${plural(r.calls, "call")} · first grade 4 hours after a call"
+                    else -> "${plural(r.calls, "call")} · ${r.graded} graded · ranked from ${Leaderboard.MIN_GRADED}"
+                },
                 color = Muted, style = MaterialTheme.typography.bodySmall,
             )
         }
-        Text(r.pct?.let { "$it%" } ?: "—", color = if (isSmt) Gold else Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        // A percentage only once something is graded; until then the row carries no empty dash.
+        r.pct?.let { Text("$it%", color = if (isSmt) Gold else Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
     }
 }
+
+private fun plural(n: Int, word: String) = if (n == 1) "1 $word" else "$n ${word}s"
