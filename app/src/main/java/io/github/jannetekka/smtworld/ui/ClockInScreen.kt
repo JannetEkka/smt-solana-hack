@@ -63,11 +63,12 @@ fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, o
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        item { StreakCard(s) }
-        item { WalletCard(s, onWallet, openUrl) }
-        if (s.walletApp) item { CallCard(s, vm, onWallet) }
+        if (s.walletApp) item { StreakCard(s) }
+        // Right after a Clock In, SMT's reveal is the next thing on screen, not below the fold.
         val done = s.send as? SendState.Done
         if (done != null && s.lastSent != null) item { RevealCard(s, done.signature, openUrl) }
+        item { WalletCard(s, onWallet, openUrl) }
+        if (s.walletApp) item { CallCard(s, vm, onWallet) }
         if (!s.walletApp || s.clockedInToday) item { BoardCard(s) }
         item { RemindersCard(s, vm) }
         item {
@@ -85,7 +86,7 @@ private fun StreakCard(s: UiState) = SectionCard {
         Text("🔥", fontSize = 40.sp)
         Spacer(Modifier.width(12.dp))
         androidx.compose.foundation.layout.Column {
-            Text("${s.streak}-day streak", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Text(if (s.streak == 0) "No streak yet" else "${s.streak}-day streak", color = Ink, fontSize = 28.sp, fontWeight = FontWeight.Bold)
             Text(
                 if (s.clockedInToday) "Clocked in today ✓  Come back tomorrow to keep it going."
                 else if (s.streak > 0) "Not yet today. Make a call before midnight to keep it."
