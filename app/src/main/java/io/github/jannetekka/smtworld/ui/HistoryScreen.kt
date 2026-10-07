@@ -93,6 +93,7 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit, onSha
             Text("SMT: ${outcomeMark(g.smt)}", color = outcomeColor(g.smt), modifier = Modifier.weight(1f))
         }
         Note("${Format.price(g.entryPx)} → ${Format.price(g.exitPx)} (${g.source})")
+        if (g.memoMismatch) Note("This memo's price didn't match the market's, so it isn't on the leaderboard.", Down)
     }
     Row {
         TextButton(onClick = { openUrl(DevnetRpc.explorerTx(c.signature)) }, modifier = Modifier.focusRing()) { Text("Transaction ${c.signature.take(8)}…") }

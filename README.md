@@ -19,13 +19,15 @@ The AI is [Smart Money Trading (SMT)](https://smt-weex-trading-bot.jannet-ekka.w
    plus a second memo, `SMT Clock In`, that puts the call on the shared leaderboard (below).
 
 4. SMT's call is revealed: its direction, its conviction, the judge's reason, and how each persona voted.
-5. 4 hours later the app grades both calls against the price then, from the same public source as the entry price, and sends a notification.
+5. 4 hours later the app grades both calls on market prices from one public source, the price at the call's minute and 4 hours later, and sends a notification.
 
 Your streak counts the days in a row you've clocked in. It's rebuilt from the chain (`getSignaturesForAddress` returns each transaction's memo), so it survives a reinstall or a new phone. The **My calls** tab shows every call with its grade and a link to Solana Explorer, plus a running score: you vs SMT.
 
 ## Everyone vs SMT
 
-Each Clock In carries a second, tiny memo that names one fixed public address, `2Hbn8xzmfySdmSYfwaCc5EtieZan29SGFaNNj2f1ZLVg` (the SHA-256 of "SMT Clock In registry v1", so nobody holds its key). The **Players** tab reads every Clock In from every player straight from that address with `getSignaturesForAddress`, looks up who paid for each one, grades them, and ranks players against each other and against SMT. There's no server and nothing anyone can edit. A player is ranked after 3 graded calls.
+Each Clock In carries a second, tiny memo that names one fixed public address, `2Hbn8xzmfySdmSYfwaCc5EtieZan29SGFaNNj2f1ZLVg` (the SHA-256 of "SMT Clock In registry v1", so nobody holds its key). The **Players** tab reads every Clock In from every player straight from that address with `getSignaturesForAddress`, looks up who paid for each one, grades them, and ranks players against each other and against SMT. There's no server, and no call can be changed once it's on chain. A player is ranked after 3 graded calls.
+
+Anyone can write a memo to that address, so the board trusts nothing a memo claims. Every call is graded on prices fetched from Binance or CoinGecko at the call's minute and 4 hours later. A memo whose stated price is more than 2% from the market's is left off the board. SMT's lean is written by players too, so SMT's row takes, for each coin and hour, the lean the most players recorded, and skips the hour on a tie.
 
 The tag uses Memo v1, which doesn't require its accounts to sign, because Memo v2 rejects an account that didn't sign. And because an instruction uses the address, it survives wallets that rebuild the transaction: Solflare adds priority-fee instructions.
 

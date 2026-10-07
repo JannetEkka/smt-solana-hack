@@ -62,15 +62,18 @@ object Prices {
      * on an earlier price would grade a shorter move). Binance's 1-minute candle already is.
      */
     fun at(coin: String, epochSec: Long, source: String, notBefore: Boolean = false): Quote? = when (source) {
-        BINANCE -> binanceAt(coin, epochSec)
+        BINANCE -> binanceAt(coin, epochSec, notBefore)
         COINGECKO -> coingeckoAt(coin, epochSec, notBefore)
         else -> null
     }
 
     /** The 1-minute candle that opens at or after the moment; its open is the price then. */
-    private fun binanceAt(coin: String, epochSec: Long): Quote? {
+    private fun binanceAt(coin: String, epochSec: Long, notBefore: Boolean): Quote? {
         if (coin !in COINS) return null                    // SKR isn't listed on Binance
-        val arr = JSONArray(Http.get("$BN/klines?symbol=${coin}USDT&interval=1m&startTime=${epochSec * 1000}&limit=1"))
+        // notBefore: the candle opening at or after the moment (the end of a horizon).
+        // Otherwise the candle containing the moment (a call's entry).
+        val start = if (notBefore) epochSec else epochSec / 60 * 60
+        val arr = JSONArray(Http.get("$BN/klines?symbol=${coin}USDT&interval=1m&startTime=${start * 1000}&limit=1"))
         if (arr.length() == 0) return null
         return Quote(arr.getJSONArray(0).getString(1).toDouble(), BINANCE)
     }

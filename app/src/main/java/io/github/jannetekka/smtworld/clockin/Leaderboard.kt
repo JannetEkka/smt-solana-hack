@@ -20,20 +20,30 @@ object Leaderboard {
     data class Entry(val call: OnChainCall, val player: String)
 
     /**
-     * One row per player plus one for SMT: SMT's record is its call on every player's Clock In,
-     * counted once per (coin, hour) so a busy coin doesn't count SMT's same call many times.
-     * Ranked players first (by hit rate, then hits), then the rest by how many calls they made.
+     * One row per player plus one for SMT. Only calls whose memo price matches the market count.
+     *
+     * Players write SMT's lean into their own memos, so a single player could misreport it. SMT's
+     * row therefore takes, for each (coin, hour), the lean most distinct players recorded, and
+     * counts that call once.
      */
     fun rows(entries: List<Entry>, grades: Map<String, Grade>): List<Row> {
-        val players = entries.groupBy { it.player }.map { (p, es) ->
+        val valid = entries.filter { grades[it.call.signature]?.memoMismatch != true }
+        val players = valid.groupBy { it.player }.map { (p, es) ->
             val gs = es.mapNotNull { grades[it.call.signature] }.filter { it.you != Outcome.NOT_SCORED }
             Row(p, es.size, gs.size, gs.count { it.you == Outcome.RIGHT }, es.maxOf { it.call.blockTime })
         }
-        val smtCalls = entries.mapNotNull { e -> grades[e.call.signature]?.let { e to it } }
-            .filter { it.second.smt != Outcome.NOT_SCORED }
-            .distinctBy { (e, _) -> e.call.call.coin to e.call.blockTime / 3600 }
-        val smt = Row(SMT, smtCalls.size, smtCalls.size, smtCalls.count { it.second.smt == Outcome.RIGHT },
-            entries.maxOfOrNull { it.call.blockTime } ?: 0)
+        val smtCalls = valid.mapNotNull { e -> grades[e.call.signature]?.let { e to it } }
+            .groupBy { (e, _) -> e.call.call.coin to e.call.blockTime / 3600 }
+            .mapNotNull { (_, inBucket) ->
+                // the lean the most distinct players recorded for this coin and hour
+                val byLean = inBucket.groupBy { it.first.call.call.smtLean }
+                    .mapValues { (_, xs) -> xs.map { it.first.player }.distinct().size }
+                val lean = byLean.maxByOrNull { it.value }?.key ?: return@mapNotNull null
+                if (byLean.values.count { it == byLean.getValue(lean) } > 1) return@mapNotNull null   // a tie: no consensus
+                inBucket.first { it.first.call.call.smtLean == lean }.second.smt.takeIf { it != Outcome.NOT_SCORED }
+            }
+        val smt = Row(SMT, smtCalls.size, smtCalls.size, smtCalls.count { it == Outcome.RIGHT },
+            valid.maxOfOrNull { it.call.blockTime } ?: 0)
         val order = compareByDescending<Row> { it.ranked }
             .thenByDescending { if (it.ranked) it.pct ?: 0 else 0 }
             .thenByDescending { if (it.ranked) it.right else it.calls }

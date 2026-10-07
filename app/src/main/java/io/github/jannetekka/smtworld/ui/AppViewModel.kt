@@ -145,7 +145,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             val addr = store.address
             val history = async(io) { addr?.let { a -> runCatching { repo.syncHistory(a) } } }
             val balance = async(io) { addr?.let { a -> runCatching { repo.rpc.balanceLamports(a) } } }
-            val skr = async(io) { addr?.let { a -> runCatching { DevnetRpc(DevnetRpc.MAINNET).tokenBalance(a, Prices.SKR_MINT) } } }
+            val readSkr = addr != null && (addr != skrFor || System.currentTimeMillis() - skrReadMs > 600_000)
+            val skr = async(io) { if (readSkr) runCatching { mainnet.tokenBalance(addr!!, Prices.SKR_MINT) } else null }
 
             val p = prices.await()
             val f = feed.await()
@@ -153,6 +154,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             val h = history.await()
             val b = balance.await()
             val k = skr.await()
+            if (k?.isSuccess == true) { skrFor = addr; skrReadMs = System.currentTimeMillis() }
             _state.update { s ->
                 s.copy(
                     prices = p.getOrNull() ?: s.prices,
@@ -168,8 +170,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             }
             if (f.isFailure) Log.w(Repo.TAG, "[FEED] SMT feed fetch failed, using cache: ${f.exceptionOrNull()?.message}")
             if (h?.isSuccess == true) StreakWidget.refresh(getApplication())
-            if (boardRefreshedMs > 0) refreshBoard()
-            gradeDue()
+            if (boardRefreshedMs > 0) refreshBoard() else gradeDue()   // the board run grades too
         }
     }
 
@@ -188,12 +189,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         }
     }
 
+    private val grading = kotlinx.coroutines.sync.Mutex()
+
+    /** One grading run at a time: overlapping runs would fetch and grade the same calls twice. */
     private suspend fun gradeDue() {
-        val newly = withContext(Dispatchers.IO) { repo.gradeDue() }
-        if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
+        if (!grading.tryLock()) return
+        try {
+            val newly = withContext(Dispatchers.IO) { repo.gradeDue() }
+            if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
+        } finally {
+            grading.unlock()
+        }
     }
 
     private var lastRefreshMs = 0L
+
+    /** Mainnet is read for one thing, the SKR balance, and at most every 10 minutes (public RPC limits). */
+    private val mainnet = DevnetRpc(DevnetRpc.MAINNET)
+    private var skrFor: String? = null
+    private var skrReadMs = 0L
 
     /**
      * Back in the foreground: a wallet app may have been installed meanwhile (Fire TV never has
@@ -238,7 +252,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         store.clearWallet()
         wallet.authToken = null
         StreakWidget.refresh(getApplication())
-        _state.update { it.copy(address = null, balanceSol = null, skrBalance = null, calls = emptyList(), grades = emptyMap(), send = SendState.Idle) }
+        _state.update { it.copy(address = null, balanceSol = null, skrBalance = null, calls = emptyList(), send = SendState.Idle) }
     }
 
     /**
@@ -319,7 +333,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         val addr = Base58.encode(pk)
         if (store.address != addr) {
             store.clearWallet()
-            _state.update { it.copy(calls = emptyList(), grades = emptyMap()) }
+            _state.update { it.copy(calls = emptyList(), skrBalance = null) }
+            StreakWidget.refresh(getApplication())
         }
         store.address = addr
         store.authToken = wallet.authToken

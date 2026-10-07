@@ -41,6 +41,32 @@ class LeaderboardTest {
         assertEquals(1, smt.right)     // BTC DOWN was right, ETH UP was wrong
     }
 
+    @Test fun oneLiarCantRewriteSmtsLean() {
+        // Two honest players record SMT DOWN on BTC this hour; one writes SMT UP. The majority stands.
+        val es = listOf(entry("a", "BTC", Dir.UP, 3600, Lean.DOWN), entry("b", "BTC", Dir.UP, 3610, Lean.DOWN),
+            entry("liar", "BTC", Dir.UP, 3620, Lean.UP))
+        val grades = es.associate { it.call.signature to Grading.grade(it.call.call, 100.0, 99.0, "binance") }
+        val smt = Leaderboard.rows(es, grades).first { it.player == Leaderboard.SMT }
+        assertEquals(1, smt.graded)
+        assertEquals(1, smt.right)     // SMT's real lean (DOWN) was right
+        // A tie gives no consensus, so the hour isn't counted for SMT.
+        val tie = listOf(entry("a", "ETH", Dir.UP, 7200, Lean.DOWN), entry("liar", "ETH", Dir.UP, 7210, Lean.UP))
+        val tg = tie.associate { it.call.signature to Grading.grade(it.call.call, 100.0, 99.0, "binance") }
+        assertEquals(0, Leaderboard.rows(tie, tg).first { it.player == Leaderboard.SMT }.graded)
+    }
+
+    @Test fun aMemoWithAFakePriceIsOffTheBoard() {
+        // "BTC UP @ 0.01": graded on the market's entry price, flagged, and left out.
+        val fake = Leaderboard.Entry(OnChainCall("fake", 1, ClockInCall("BTC", Dir.UP, 0.01, "binance", Lean.FLAT, 0, "WAIT")), "cheat")
+        val g = Grading.graded(fake.call.call, 85000.0, 85100.0, "binance")
+        assertTrue(g.memoMismatch)
+        assertEquals(85000.0, g.entryPx, 0.0)
+        assertTrue(Leaderboard.rows(listOf(fake), mapOf("fake" to g)).none { it.player == "cheat" })
+        // An honest memo (within 2% of the market) is not flagged.
+        val honest = ClockInCall("BTC", Dir.UP, 85010.0, "binance", Lean.FLAT, 0, "WAIT")
+        assertFalse(Grading.graded(honest, 85000.0, 85100.0, "binance").memoMismatch)
+    }
+
     @Test fun emptyBoardStillHasSmtRow() {
         val rows = Leaderboard.rows(emptyList(), emptyMap())
         assertEquals(listOf(Leaderboard.SMT), rows.map { it.player })

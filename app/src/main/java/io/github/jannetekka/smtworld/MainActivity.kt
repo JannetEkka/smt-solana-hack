@@ -11,6 +11,11 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.lifecycle.lifecycleScope
+import io.github.jannetekka.smtworld.share.ShareCard
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
 import io.github.jannetekka.smtworld.ui.AppRoot
 import io.github.jannetekka.smtworld.ui.AppViewModel
@@ -37,11 +42,16 @@ class MainActivity : ComponentActivity() {
         vm.onResume()
     }
 
+    /** The PNG is drawn and written off the main thread; only the share sheet opens on it. */
     private fun shareCall(oc: io.github.jannetekka.smtworld.clockin.OnChainCall) {
-        try {
-            io.github.jannetekka.smtworld.share.ShareCard.share(this, oc, vm.state.value.grades[oc.signature])
-        } catch (e: Exception) {
-            Toast.makeText(this, "Couldn't share: ${e.message}", Toast.LENGTH_LONG).show()
+        val grade = vm.state.value.grades[oc.signature]
+        lifecycleScope.launch {
+            try {
+                val send = withContext(Dispatchers.IO) { ShareCard.prepare(this@MainActivity, oc, grade) }
+                startActivity(send)
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Couldn't share: ${e.message}", Toast.LENGTH_LONG).show()
+            }
         }
     }
 

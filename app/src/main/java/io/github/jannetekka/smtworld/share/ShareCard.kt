@@ -29,8 +29,11 @@ object ShareCard {
     private const val UP = 0xFF3DDC97.toInt()
     private const val DOWN = 0xFFFF6B6B.toInt()
 
-    fun share(context: Context, oc: OnChainCall, grade: Grade?) {
-        val file = File(context.cacheDir, "share").apply { mkdirs() }.resolve("clockin_${oc.signature.take(10)}.png")
+    /** Draws and writes the image (call off the main thread); returns the share-sheet intent. */
+    fun prepare(context: Context, oc: OnChainCall, grade: Grade?): Intent {
+        val dir = File(context.cacheDir, "share").apply { mkdirs() }
+        dir.listFiles()?.forEach { it.delete() }                      // only the latest card is kept
+        val file = dir.resolve("clockin_${oc.signature.take(10)}.png")
         file.outputStream().use { render(oc, grade).compress(Bitmap.CompressFormat.PNG, 100, it) }
         val uri = FileProvider.getUriForFile(context, context.packageName + ".share", file)
         val text = caption(oc, grade) + "\n" + DevnetRpc.explorerTx(oc.signature) + "\nhttps://github.com/JannetEkka/smt-solana-hack"
@@ -39,7 +42,7 @@ object ShareCard {
             .putExtra(Intent.EXTRA_STREAM, uri)
             .putExtra(Intent.EXTRA_TEXT, text)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        context.startActivity(Intent.createChooser(send, "Share your call").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        return Intent.createChooser(send, "Share your call")
     }
 
     fun caption(oc: OnChainCall, g: Grade?): String {

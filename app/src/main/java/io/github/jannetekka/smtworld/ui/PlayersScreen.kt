@@ -37,8 +37,9 @@ fun PlayersScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
             SectionCard {
                 Text("Everyone vs SMT", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 Note("Every Clock In, from every player, also names one public address on Solana. This list is read " +
-                    "straight from that address: there's no server, and nobody can edit it. A player is ranked after " +
-                    "${Leaderboard.MIN_GRADED} graded calls.")
+                    "straight from that address, with no server, and no call can be changed once it's on chain. Calls are " +
+                    "graded on Binance or CoinGecko prices, never on what a memo says. A player is ranked after " +
+                    "${Leaderboard.MIN_GRADED} graded calls; SMT's row uses the lean most players recorded for each coin and hour.")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { openUrl(DevnetRpc.explorerAddress(MemoTransaction.REGISTRY)) }, modifier = Modifier.focusRing()) {
                         Text("See the address on Explorer")

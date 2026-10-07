@@ -35,7 +35,7 @@ class StreakWidget : AppWidgetProvider() {
             val today = Streak.localDay(System.currentTimeMillis() / 1000)
             val streak = Streak.current(days, today)
             val v = RemoteViews(context.packageName, R.layout.widget_streak)
-            v.setTextViewText(R.id.widget_streak, if (streak > 0) "🔥 $streak" else "🔥 0")
+            v.setTextViewText(R.id.widget_streak, "🔥 $streak")
             v.setTextViewText(
                 R.id.widget_status,
                 when {

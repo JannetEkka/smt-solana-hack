@@ -56,7 +56,9 @@ class DevnetRpc(private val endpoint: String = DEVNET) {
                     .put("params", JSONArray().put(sig).put(JSONObject().put("encoding", "json")
                         .put("maxSupportedTransactionVersion", 0).put("commitment", "confirmed"))))
             }
-            val res = JSONArray(Http.postJson(endpoint, batch.toString(), timeoutMs = 20_000))
+            // A throttled or rejected chunk answers with one error object instead of an array: skip
+            // that chunk and keep the others, so one bad chunk doesn't lose the whole sync.
+            val res = runCatching { JSONArray(Http.postJson(endpoint, batch.toString(), timeoutMs = 20_000)) }.getOrNull() ?: continue
             for (k in 0 until res.length()) {
                 val r = res.getJSONObject(k)
                 val tx = r.optJSONObject("result") ?: continue
