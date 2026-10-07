@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -53,14 +54,19 @@ import io.github.jannetekka.smtworld.solana.DevnetRpc
 fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit = {}) {
     val ctx = LocalContext.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val list = rememberLazyListState()
     LaunchedEffect(s.send) {
-        if (s.send is SendState.Done && Build.VERSION.SDK_INT >= 33 &&
+        if (s.send !is SendState.Done) return@LaunchedEffect
+        // The reveal sits right under the streak, above the button that was just tapped: bring it into view.
+        list.animateScrollToItem(0)
+        if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     LazyColumn(
         Modifier.fillMaxSize(),
+        state = list,
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
