@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package io.github.jannetekka.smtworld.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -71,11 +73,15 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = Sec
         Text(Format.dayTime(c.blockTime), color = Muted, modifier = Modifier.weight(1f))
         if (g != null) Text(Format.pct(g.movePct), color = if (g.movePct >= 0) Up else Down, fontWeight = FontWeight.Bold)
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("You ", color = Muted); Pill(dirLabel(c.call.you), dirColor(c.call.you))
-        Spacer(Modifier.width(12.dp))
-        Text("SMT ", color = Muted); Pill(leanLabel(c.call.smtLean), leanColor(c.call.smtLean))
-        Spacer(Modifier.width(6.dp))
+    // Wraps instead of overflowing with large system fonts.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("You", color = Muted); Pill(dirLabel(c.call.you), dirColor(c.call.you))
+        Spacer(Modifier.width(8.dp))
+        Text("SMT", color = Muted); Pill(leanLabel(c.call.smtLean), leanColor(c.call.smtLean))
         Text("${c.call.smtConvictionPct}% ${c.call.smtAction.lowercase()}", color = Muted)
     }
     if (g == null) {

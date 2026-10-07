@@ -218,14 +218,21 @@ private fun BoardCard(s: UiState) = SectionCard {
     if (s.smt.isEmpty()) { Note("Loading SMT's calls…"); return@SectionCard }
     var open by remember { mutableStateOf<String?>(null) }
     Prices.COINS.mapNotNull { s.smt[it] }.forEach { c ->
+        // Two lines per coin so nothing is squeezed on a narrow phone or with large system fonts:
+        // coin and price on top, SMT's lean and conviction underneath.
         TextButton(onClick = { open = if (open == c.coin) null else c.coin }, modifier = Modifier.fillMaxWidth().focusRing()) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(c.coin, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.width(56.dp))
-                Pill(leanLabel(c.lean), leanColor(c.lean))
-                Spacer(Modifier.width(8.dp))
-                Text(if (c.action == "WAIT") "sitting out · ${c.convictionPct}%" else "${c.action} · ${c.convictionPct}%", color = Muted)
-                Spacer(Modifier.weight(1f))
-                Text(Format.price(s.prices[c.coin]?.px), color = Muted)
+            androidx.compose.foundation.layout.Column(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(c.coin, color = Ink, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    Text(Format.price(s.prices[c.coin]?.px), color = Muted, maxLines = 1, softWrap = false)
+                    Text(if (open == c.coin) "  ▴" else "  ▾", color = Muted)
+                }
+                Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Pill(leanLabel(c.lean), leanColor(c.lean))
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (c.action == "WAIT") "sitting out · ${c.convictionPct}%" else "${c.action} · ${c.convictionPct}%",
+                        color = Muted, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                }
             }
         }
         if (open == c.coin) SmtCallBody(c, s.smtAgeHours(c.coin))

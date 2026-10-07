@@ -97,7 +97,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             identityUri = Uri.parse(SmtFeed.SITE.removeSuffix("/")),
             iconUri = Uri.parse("smt_logo.png"),
             identityName = "SMT World",
-        )
+        ),
+        // 3 minutes per wallet request (the library's default is 90 s): a first-time user reads
+        // the wallet's "unknown site" warning before approving, and that took longer than 90 s.
+        timeout = 180_000,
     ).apply {
         blockchain = Solana.Devnet
         authToken = store.authToken
@@ -292,7 +295,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
 
     /** A wallet can drop our saved session; on "Auth token invalid" forget it and ask once more. */
     private suspend fun <T> withAuthRetry(op: suspend () -> TransactionResult<T>): TransactionResult<T> {
-        val first = guarded(op)
+        var first = guarded(op)
+        // A wallet starting cold (or asking for its PIN) can miss MWA's 10-second window to open
+        // the local connection. Nothing was signed at that stage, so one retry is safe; the
+        // wallet is awake by then. Never retried after signing has started (no double send).
+        if (first is TransactionResult.Failure && isAssociationFailure(first.message)) {
+            Log.w(Repo.TAG, "[WALLET] association failed (${first.message}); retrying once")
+            first = guarded(op)
+        }
         if (first is TransactionResult.Failure && first.message.contains("Auth token", ignoreCase = true)) {
             wallet.authToken = null
             store.authToken = null
@@ -314,10 +324,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         TransactionResult.Failure("Network error: ${e.message}", e)
     }
 
+    private fun isAssociationFailure(msg: String) =
+        msg.contains("local association", true) || msg.contains("association intent", true)
+
     private fun friendly(msg: String, e: Exception): String = when {
         msg.contains("did not authorize", true) || msg.contains("declined", true) ||
             msg.contains("interrupted", true) || msg.contains("cancelled", true) -> "Cancelled in the wallet. Nothing was sent."
-        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Open it once, then try again."
+        isAssociationFailure(msg) -> "Couldn't reach the wallet app. Open Solflare or Phantom once, then tap Clock in again."
+        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Nothing was sent. Try again."
         msg.contains("not all transactions were submitted", true) || msg.contains("Not submitted", true) ->
             "The wallet signed but could not send. Is it on Devnet, with a little devnet SOL? (faucet.solana.com)"
         else -> "$msg${e.cause?.message?.let { " ($it)" } ?: ""}"
