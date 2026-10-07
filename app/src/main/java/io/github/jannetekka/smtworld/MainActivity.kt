@@ -29,12 +29,20 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
-        setContent { SmtTheme { AppRoot(vm, sender, ::openUrl) } }
+        setContent { SmtTheme { AppRoot(vm, sender, ::openUrl, ::shareCall) } }
     }
 
     override fun onResume() {
         super.onResume()
         vm.onResume()
+    }
+
+    private fun shareCall(oc: io.github.jannetekka.smtworld.clockin.OnChainCall) {
+        try {
+            io.github.jannetekka.smtworld.share.ShareCard.share(this, oc, vm.state.value.grades[oc.signature])
+        } catch (e: Exception) {
+            Toast.makeText(this, "Couldn't share: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     private fun openUrl(url: String) {

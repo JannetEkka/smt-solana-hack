@@ -26,7 +26,7 @@ import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 
 @Composable
-fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
+fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit = {}) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -42,7 +42,7 @@ fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
         s.historyError?.let { item { Note(it, Down) } }
         if (s.address == null) item { Note("Connect a wallet on the Clock In tab to see your calls.") }
         else if (s.calls.isEmpty()) item { Note("No Clock Ins on this wallet yet.") }
-        items(s.calls, key = { it.signature }) { c -> CallRow(c, s, openUrl) }
+        items(s.calls, key = { it.signature }) { c -> CallRow(c, s, openUrl, onShare) }
     }
 }
 
@@ -65,7 +65,7 @@ private fun ScoreCell(who: String, sc: Grading.Score, modifier: Modifier) = Colu
 }
 
 @Composable
-private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = SectionCard {
+private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit) = SectionCard {
     val g = s.grades[c.signature]
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(c.call.coin, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -94,5 +94,8 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = Sec
         }
         Note("${Format.price(g.entryPx)} → ${Format.price(g.exitPx)} (${g.source})")
     }
-    TextButton(onClick = { openUrl(DevnetRpc.explorerTx(c.signature)) }, modifier = Modifier.focusRing()) { Text("Transaction ${c.signature.take(8)}…") }
+    Row {
+        TextButton(onClick = { openUrl(DevnetRpc.explorerTx(c.signature)) }, modifier = Modifier.focusRing()) { Text("Transaction ${c.signature.take(8)}…") }
+        TextButton(onClick = { onShare(c) }, modifier = Modifier.focusRing()) { Text("Share") }
+    }
 }

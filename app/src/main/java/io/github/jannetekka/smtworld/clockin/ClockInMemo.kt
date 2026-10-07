@@ -44,11 +44,36 @@ data class ClockInCall(
         fun fmtPx(px: Double): String =
             BigDecimal(px).round(MathContext(8)).stripTrailingZeros().toPlainString()
 
-        /** Accepts the memo text or the RPC's memo field, which prefixes each memo with "[length] ". */
+        /**
+         * The RPC's `memo` field lists every memo in a transaction as "[length] text", joined by
+         * "; ". Splits it using the lengths (so a "; " inside a memo can't break it). A bare memo
+         * text, with no prefix, comes back as itself.
+         */
+        fun segments(field: String): List<String> {
+            if (!field.startsWith("[")) return listOf(field)
+            val out = mutableListOf<String>()
+            var i = 0
+            val bytes = field.toByteArray(Charsets.UTF_8)
+            while (i < bytes.size) {
+                if (bytes[i] != '['.code.toByte()) break
+                val close = (i until bytes.size).firstOrNull { bytes[it] == ']'.code.toByte() } ?: break
+                val len = String(bytes, i + 1, close - i - 1, Charsets.UTF_8).toIntOrNull() ?: break
+                val start = close + 2                                     // "] "
+                if (start + len > bytes.size) break
+                out += String(bytes, start, len, Charsets.UTF_8)
+                i = start + len + 2                                       // "; "
+            }
+            return out.ifEmpty { listOf(field) }
+        }
+
+        /** Accepts the memo text or the RPC's memo field; takes the first segment that is a Clock In. */
         fun parse(memo: String?): ClockInCall? {
             if (memo == null) return null
-            val text = memo.trim().replaceFirst(Regex("""^\[\d+\]\s*"""), "")
-            val m = RE.matchEntire(text) ?: return null
+            return segments(memo.trim()).firstNotNullOfOrNull { parseOne(it) }
+        }
+
+        private fun parseOne(text: String): ClockInCall? {
+            val m = RE.matchEntire(text.trim()) ?: return null
             val g = m.groupValues
             return ClockInCall(
                 coin = g[1],

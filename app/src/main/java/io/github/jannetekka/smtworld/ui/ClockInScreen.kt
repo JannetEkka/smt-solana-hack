@@ -45,11 +45,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import io.github.jannetekka.smtworld.clockin.ClockInCall
 import io.github.jannetekka.smtworld.clockin.Dir
+import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.market.Prices
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 
 @Composable
-fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, openUrl: (String) -> Unit) {
+fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit = {}) {
     val ctx = LocalContext.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(s.send) {
@@ -66,7 +67,7 @@ fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, o
         if (s.walletApp) item { StreakCard(s) }
         // Right after a Clock In, SMT's reveal is the next thing on screen, not below the fold.
         val done = s.send as? SendState.Done
-        if (done != null && s.lastSent != null) item { RevealCard(s, done.signature, openUrl) }
+        if (done != null && s.lastSent != null) item { RevealCard(s, done.signature, openUrl, onShare) }
         item { WalletCard(s, onWallet, openUrl) }
         if (s.walletApp) item { CallCard(s, vm, onWallet) }
         if (!s.walletApp || s.clockedInToday) item { BoardCard(s) }
@@ -117,6 +118,13 @@ private fun WalletCard(s: UiState, onWallet: (WalletAction) -> Unit, openUrl: (S
                 Text(Format.shortAddr(s.address), color = Ink, fontWeight = FontWeight.SemiBold)
                 Text(s.balanceSol?.let { String.format(java.util.Locale.US, "%.4f SOL", it) } ?: "", color = Muted)
             }
+            s.skrBalance?.let { skr ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("SKR", Gold)
+                    Text(if (skr > 0) String.format(java.util.Locale.US, "%,.2f SKR on mainnet", skr) else "No SKR in this wallet on mainnet",
+                        color = Muted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
             if (s.balanceSol != null && s.balanceSol < 0.0001) {
                 Note("This wallet has no devnet SOL yet. Get 1 SOL free from the faucet, then come back.", GoldSoft)
                 OutlinedButton(onClick = { openUrl("https://faucet.solana.com") }, modifier = Modifier.focusRing()) { Text("Open the devnet faucet") }
@@ -139,7 +147,7 @@ private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit
     )
     Note("Make your call first. SMT's call on the same coin is revealed after yours is on chain.")
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Prices.COINS.forEach { c ->
+        Prices.GAME_COINS.forEach { c ->
             FilterChip(
                 selected = s.coin == c,
                 onClick = { vm.selectCoin(c) },
@@ -152,6 +160,7 @@ private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit
     }
     val q = s.prices[s.coin]
     Text("Now ${Format.price(q?.px)}" + (q?.let { "  ·  ${it.source}" } ?: ""), color = Muted)
+    if (s.coin == Prices.SKR) Note("SKR is the Solana Mobile ecosystem's token. SMT doesn't call it: this one is you vs the market.", GoldSoft)
     s.pricesError?.let { Note(it, Down) }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
         listOf(Dir.UP, Dir.DOWN).forEach { d ->
@@ -189,18 +198,24 @@ private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit
 }
 
 @Composable
-private fun RevealCard(s: UiState, signature: String, openUrl: (String) -> Unit) = SectionCard {
+private fun RevealCard(s: UiState, signature: String, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit) = SectionCard {
     val oc = s.lastSent ?: return@SectionCard
     Text("You're on chain ✓", color = Up, fontSize = 20.sp, fontWeight = FontWeight.Bold)
     Text("You called ${oc.call.coin} ${dirLabel(oc.call.you)} at ${Format.price(oc.call.entryPx)}. " +
         "It's graded at ${Format.time(oc.dueAt)}, and you'll get a notification.", color = Ink)
-    OutlinedButton(onClick = { openUrl(DevnetRpc.explorerTx(signature)) }, modifier = Modifier.focusRing()) { Text("View the transaction") }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedButton(onClick = { openUrl(DevnetRpc.explorerTx(signature)) }, modifier = Modifier.focusRing()) { Text("View the transaction") }
+        OutlinedButton(onClick = { onShare(oc) }, modifier = Modifier.focusRing()) { Text("Share") }
+    }
     Note("Memo: ${oc.call.toMemo()}")
     Spacer(Modifier.height(4.dp))
     Text("Now, SMT's call on ${oc.call.coin}", color = GoldSoft, style = MaterialTheme.typography.titleMedium)
     // The call that went into the memo, not whatever the feed says now.
     val smt = s.revealed
     when {
+        oc.call.smtAction == "NOCALL" ->
+            Note("SMT trades 8 coins and doesn't call ${oc.call.coin}, so this one is you against the market. " +
+                "It still counts for your streak and your score.", GoldSoft)
         oc.call.smtAction == "NOFEED" || smt == null ->
             Note("SMT's feed didn't answer, so SMT has no call on chain this time.", Down)
         oc.call.smtAction == "STALE" -> {

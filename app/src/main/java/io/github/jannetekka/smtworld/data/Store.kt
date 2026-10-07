@@ -41,6 +41,16 @@ class Store(context: Context) {
 
     fun putGrade(signature: String, g: Grade) { grades = grades + (signature to g) }
 
+    /** Every player's Clock Ins, as last read from the registry address. */
+    var boardCalls: List<OnChainCall>
+        get() = readCalls(p.getString("board_calls", null))
+        set(v) = p.edit().putString("board_calls", writeCalls(v)).apply()
+
+    /** Transaction signature → the wallet that paid for it (never changes, so cached for good). */
+    var payers: Map<String, String>
+        get() = p.getString("payers", null)?.let { s -> org.json.JSONObject(s).let { o -> o.keys().asSequence().associateWith { o.getString(it) } } } ?: emptyMap()
+        set(v) = p.edit().putString("payers", org.json.JSONObject(v as Map<*, *>).toString()).apply()
+
     fun clearWallet() {
         p.edit().remove("address").remove("auth_token").remove("calls").remove("grades").apply()
     }

@@ -41,11 +41,11 @@ class SolanaWireTest {
     }
 
     /**
-     * The same message built by solders (the Rust solana-sdk's Python bindings), an
+     * The same two-memo message built by solders (the Rust solana-sdk's Python bindings), an
      * implementation that shares no code with ours. Regenerate with docs/golden_memo_message.py.
      */
     @Test fun messageMatchesIndependentReference() {
-        val golden = "0100010285936cbc16f8e003dfcba292cebb36bb0e83976084351d9261cfe8f278a45bc8054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448dcc490e928cd2e3873bb343fc95da33179ca60f4dbf46c2c36e91299d55d4e6b90101010050534d5420436c6f636b20496e207631207c20425443207c206d6520555020402036323334352e31322062696e616e6365207c20534d5420444f574e203336252057414954207c206772616465202b3468"
+        val golden = "0100030485936cbc16f8e003dfcba292cebb36bb0e83976084351d9261cfe8f278a45bc8131c4dc20093b5c373f5cf899f8c9000ab9781988d92fc0f1b563592b6e7f52b054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d054a5350f85dc882d614a55672788a296ddf1eababd0a60678884932f4eef6a0cc490e928cd2e3873bb343fc95da33179ca60f4dbf46c2c36e91299d55d4e6b90202010050534d5420436c6f636b20496e207631207c20425443207c206d6520555020402036323334352e31322062696e616e6365207c20534d5420444f574e203336252057414954207c206772616465202b34680301010c534d5420436c6f636b20496e"
         val msg = MemoTransaction.message(
             Base58.decode("9zRcCvqFV9jVDLCPPAhUC17NwJUZypHaPB5YcM6xEhJw"),
             Base58.decode("EkSnNWid2cvwEVnVx9aBqawnmiCNiDgp3gUdkDPTKN1N"),
@@ -62,6 +62,12 @@ class SolanaWireTest {
         assertArrayEquals(MemoTransaction.message(payer, ByteArray(32) { 2 }, "hi"), MemoTransaction.messageOf(tx))
         val signed = MemoTransaction.withSignature(tx, ByteArray(64) { 9 })
         assertArrayEquals(ByteArray(64) { 9 }, signed.copyOfRange(1, 65))
+    }
+
+    @Test fun registryIsTheDocumentedHash() {
+        val h = java.security.MessageDigest.getInstance("SHA-256").digest("SMT Clock In registry v1".toByteArray())
+        assertEquals(MemoTransaction.REGISTRY, Base58.encode(h))
+        assertEquals(32, Base58.decode(MemoTransaction.MEMO_V1_PROGRAM_ID).size)
     }
 
     @Test fun refusesOversizedMemo() {

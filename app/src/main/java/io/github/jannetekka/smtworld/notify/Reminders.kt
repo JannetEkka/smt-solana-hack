@@ -102,6 +102,7 @@ object Reminders {
 class DailyReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
     override suspend fun doWork(): Result {
         val repo = Repo(applicationContext)
+        io.github.jannetekka.smtworld.widget.StreakWidget.refresh(applicationContext)   // the day has turned over
         if (!repo.store.remindersOn) return Result.success()
         val days = repo.store.calls.map { Streak.localDay(it.blockTime) }.toSet()
         val today = Streak.localDay(System.currentTimeMillis() / 1000)
@@ -120,8 +121,11 @@ class GradeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         val addr = repo.store.address
         if (addr != null) runCatching { repo.syncHistory(addr) }
         val graded = repo.gradeDue()
+        io.github.jannetekka.smtworld.widget.StreakWidget.refresh(applicationContext)
         // Grades are always saved; the notification respects the reminders switch.
-        if (repo.store.remindersOn) for ((c, g) in graded) {
+        // Only this wallet's own calls notify; other players' calls are graded for the leaderboard.
+        val mine = repo.store.calls.map { it.signature }.toSet()
+        if (repo.store.remindersOn) for ((c, g) in graded.filter { it.first.signature in mine }) {
             val you = when (g.you) { Outcome.RIGHT -> "you were right"; Outcome.WRONG -> "you were wrong"; else -> "no move" }
             val smt = when (g.smt) { Outcome.RIGHT -> "SMT was right"; Outcome.WRONG -> "SMT was wrong"; else -> "SMT sat it out" }
             Reminders.postGrade(applicationContext, c.signature.hashCode(),
