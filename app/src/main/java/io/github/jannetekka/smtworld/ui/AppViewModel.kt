@@ -74,7 +74,7 @@ data class UiState(
     val scoreYou get() = Grading.scoreYou(grades.filterKeys { k -> calls.any { it.signature == k } }.values)
     val scoreSmt get() = Grading.scoreSmt(grades.filterKeys { k -> calls.any { it.signature == k } }.values)
     /** Hours since SMT's feed for the chosen coin was written; null if unknown. */
-    fun smtAgeHours(coin: String): Double? = smt[coin]?.asOfEpochSec?.let { (nowSec - it) / 3600.0 }
+    fun smtAgeHours(coin: String): Double? = smt[coin]?.asOfEpochSec?.let { ((nowSec - it) / 3600.0).coerceAtLeast(0.0) }
 }
 
 /** What the screens can ask for. Kept separate so screens render (and screenshot) without a view model. */
@@ -120,6 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
     }
 
     override fun refresh() {
+        lastRefreshMs = System.currentTimeMillis()
         viewModelScope.launch {
             _state.update { it.copy(loading = true, nowSec = System.currentTimeMillis() / 1000) }
             val io = Dispatchers.IO
@@ -156,10 +157,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
     }
 
-    /** A wallet app may be installed while we are in the background (Fire TV never has one). */
-    fun recheckWallet() {
+    private var lastRefreshMs = 0L
+
+    /**
+     * Back in the foreground: a wallet app may have been installed meanwhile (Fire TV never has
+     * one), and if the app sat in the background, "today", the streak and due grades have moved.
+     */
+    fun onResume() {
         val has = hasWalletApp(getApplication())
         if (has != _state.value.walletApp) _state.update { it.copy(walletApp = has) }
+        val busy = _state.value.send.let { it is SendState.Preparing || it is SendState.InWallet }
+        if (!busy && System.currentTimeMillis() - lastRefreshMs > 120_000) refresh()
     }
 
     override fun selectCoin(c: String) = _state.update { it.copy(coin = c, pick = null, send = SendState.Idle) }
@@ -209,10 +217,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     val feed = runCatching { SmtFeed.fetch() }.getOrNull()
                     feed?.first?.let { store.decisionsJson = it }
                     val smt = feed?.second?.get(coin) ?: _state.value.smt[coin]
-                    Triple(quote, smt, repo.rpc.latestBlockhash())
+                    quote to smt
                 }
             }
-            val (quote, smt, blockhash) = prepared.getOrElse { e ->
+            val (quote, smt) = prepared.getOrElse { e ->
                 _state.update { it.copy(send = SendState.Failed("Could not reach the network: ${e.message}")) }
                 return@launch
             }
@@ -221,6 +229,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             val r = withAuthRetry {
                 wallet.transact(sender) { auth ->
                     val pk = auth.accounts.first().publicKey
+                    // Fetched here, after the wallet has authorized, so the time the user spends
+                    // approving the connection can't expire it (a blockhash lives about a minute).
+                    val blockhash = repo.rpc.latestBlockhash()
                     val tx = MemoTransaction.unsigned(pk, blockhash, call.toMemo())
                     pk to signAndSendTransactions(arrayOf(tx)).signatures.first()
                 }
@@ -274,17 +285,32 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
 
     /** A wallet can drop our saved session; on "Auth token invalid" forget it and ask once more. */
     private suspend fun <T> withAuthRetry(op: suspend () -> TransactionResult<T>): TransactionResult<T> {
-        val first = op()
+        val first = guarded(op)
         if (first is TransactionResult.Failure && first.message.contains("Auth token", ignoreCase = true)) {
             wallet.authToken = null
             store.authToken = null
-            return op()
+            return guarded(op)
         }
         return first
     }
 
+    /**
+     * MWA turns its own errors into Failure, but an exception thrown inside our block (the devnet
+     * blockhash request is an IOException) escapes it; catch it here so it can't crash the app.
+     */
+    private suspend fun <T> guarded(op: suspend () -> TransactionResult<T>): TransactionResult<T> = try {
+        op()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.w(Repo.TAG, "[WALLET] ${e.javaClass.simpleName}: ${e.message}")
+        TransactionResult.Failure("Network error: ${e.message}", e)
+    }
+
     private fun friendly(msg: String, e: Exception): String = when {
-        msg.contains("did not authorize", true) || msg.contains("declined", true) -> "You cancelled in the wallet. Nothing was sent."
+        msg.contains("did not authorize", true) || msg.contains("declined", true) ||
+            msg.contains("interrupted", true) || msg.contains("cancelled", true) -> "Cancelled in the wallet. Nothing was sent."
+        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Open it once, then try again."
         msg.contains("not all transactions were submitted", true) || msg.contains("Not submitted", true) ->
             "The wallet signed but could not send. Is it on Devnet, with a little devnet SOL? (faucet.solana.com)"
         else -> "$msg${e.cause?.message?.let { " ($it)" } ?: ""}"

@@ -56,7 +56,7 @@ object Reminders {
         val req = PeriodicWorkRequestBuilder<DailyReminderWorker>(24, TimeUnit.HOURS)
             .setInitialDelay(next.timeInMillis - now.timeInMillis, TimeUnit.MILLISECONDS)
             .build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("daily-clock-in", ExistingPeriodicWorkPolicy.UPDATE, req)
+        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("daily-clock-in", ExistingPeriodicWorkPolicy.KEEP, req)
         Log.i(Repo.TAG, "[REMINDER] daily nudge scheduled for ${next.time}")
     }
 

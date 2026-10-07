@@ -175,7 +175,7 @@ private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit
         if (busy) { CircularProgressIndicator(Modifier.padding(end = 8.dp).height(20.dp).width(20.dp), color = Navy, strokeWidth = 2.dp) }
         Text(
             when (s.send) {
-                SendState.Preparing -> "Getting the price and a blockhash…"
+                SendState.Preparing -> "Getting the price…"
                 SendState.InWallet -> "Approve it in your wallet…"
                 else -> "Clock in on Solana"
             },
