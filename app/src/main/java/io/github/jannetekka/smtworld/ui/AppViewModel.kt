@@ -77,7 +77,16 @@ data class UiState(
     fun smtAgeHours(coin: String): Double? = smt[coin]?.asOfEpochSec?.let { (nowSec - it) / 3600.0 }
 }
 
-class AppViewModel(app: Application) : AndroidViewModel(app) {
+/** What the screens can ask for. Kept separate so screens render (and screenshot) without a view model. */
+interface UiActions {
+    fun refresh()
+    fun selectCoin(c: String)
+    fun pick(d: Dir)
+    fun resetSend()
+    fun setReminders(on: Boolean)
+}
+
+class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
     private val repo = Repo(app)
     private val store = repo.store
     private val wallet = MobileWalletAdapter(
@@ -110,7 +119,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         refresh()
     }
 
-    fun refresh() {
+    override fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, nowSec = System.currentTimeMillis() / 1000) }
             val io = Dispatchers.IO
@@ -153,11 +162,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (has != _state.value.walletApp) _state.update { it.copy(walletApp = has) }
     }
 
-    fun selectCoin(c: String) = _state.update { it.copy(coin = c, pick = null, send = SendState.Idle) }
-    fun pick(d: Dir) = _state.update { it.copy(pick = d) }
-    fun resetSend() = _state.update { it.copy(send = SendState.Idle, pick = null) }
+    override fun selectCoin(c: String) = _state.update { it.copy(coin = c, pick = null, send = SendState.Idle) }
+    override fun pick(d: Dir) = _state.update { it.copy(pick = d) }
+    override fun resetSend() = _state.update { it.copy(send = SendState.Idle, pick = null) }
 
-    fun setReminders(on: Boolean) {
+    override fun setReminders(on: Boolean) {
         store.remindersOn = on
         if (on) Reminders.scheduleDaily(getApplication())
         _state.update { it.copy(remindersOn = on) }

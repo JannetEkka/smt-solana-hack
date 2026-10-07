@@ -24,7 +24,7 @@ import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 
 @Composable
-fun HistoryScreen(s: UiState, vm: AppViewModel, openUrl: (String) -> Unit) {
+fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),

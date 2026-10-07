@@ -49,7 +49,7 @@ import io.github.jannetekka.smtworld.market.Prices
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 
 @Composable
-fun ClockInScreen(s: UiState, vm: AppViewModel, onWallet: (WalletAction) -> Unit, openUrl: (String) -> Unit) {
+fun ClockInScreen(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit, openUrl: (String) -> Unit) {
     val ctx = LocalContext.current
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(s.send) {
@@ -129,7 +129,7 @@ private fun WalletCard(s: UiState, onWallet: (WalletAction) -> Unit, openUrl: (S
 }
 
 @Composable
-private fun CallCard(s: UiState, vm: AppViewModel, onWallet: (WalletAction) -> Unit) = SectionCard {
+private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit) = SectionCard {
     val busy = s.send is SendState.Preparing || s.send is SendState.InWallet
     Text(
         if (s.clockedInToday) "Another call? Where will ${s.coin} be in ${ClockInCall.HORIZON_HOURS} hours?"
@@ -224,7 +224,7 @@ private fun BoardCard(s: UiState) = SectionCard {
 }
 
 @Composable
-private fun RemindersCard(s: UiState, vm: AppViewModel) = SectionCard {
+private fun RemindersCard(s: UiState, vm: UiActions) = SectionCard {
     Row(verticalAlignment = Alignment.CenterVertically) {
         androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {
             Text("Daily reminder", color = Ink, fontWeight = FontWeight.SemiBold)
