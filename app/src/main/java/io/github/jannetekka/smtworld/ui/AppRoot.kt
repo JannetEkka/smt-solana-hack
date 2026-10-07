@@ -23,13 +23,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.solana.mobilewalletadapter.clientlib.ActivityResultSender
+import io.github.jannetekka.smtworld.clockin.OnChainCall
 
 enum class AppTab(val label: String, val glyph: String, val title: String) {
-    CLOCK_IN("Clock In", "⏱", "SMT Clock In"), CALLS("My calls", "📜", "My calls"), WORLD("SMT World", "🌍", "SMT World")
+    CLOCK_IN("Clock In", "⏱", "SMT Clock In"), CALLS("My calls", "📜", "My calls"),
+    PLAYERS("Players", "🏆", "Everyone vs SMT"), WORLD("SMT World", "🌍", "SMT World")
 }
 
 @Composable
-fun AppRoot(vm: AppViewModel, sender: ActivityResultSender, openUrl: (String) -> Unit) {
+fun AppRoot(vm: AppViewModel, sender: ActivityResultSender, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit = {}) {
     val s by vm.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     AppScaffold(AppTab.entries[tab], onTab = { tab = it.ordinal }) {
@@ -40,8 +42,9 @@ fun AppRoot(vm: AppViewModel, sender: ActivityResultSender, openUrl: (String) ->
                     WalletAction.CLOCK_IN -> vm.clockIn(sender)
                     WalletAction.FORGET -> vm.forgetWallet()
                 }
-            }, openUrl = openUrl)
-            AppTab.CALLS -> HistoryScreen(s, vm, openUrl)
+            }, openUrl = openUrl, onShare = onShare)
+            AppTab.CALLS -> HistoryScreen(s, vm, openUrl, onShare)
+            AppTab.PLAYERS -> PlayersScreen(s, vm, openUrl)
             AppTab.WORLD -> WorldScreen(openUrl)
         }
     }

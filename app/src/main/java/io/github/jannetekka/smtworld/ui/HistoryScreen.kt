@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package io.github.jannetekka.smtworld.ui
 
 import androidx.compose.foundation.layout.Arrangement
@@ -24,7 +26,7 @@ import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 
 @Composable
-fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
+fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit = {}) {
     LazyColumn(
         Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -40,7 +42,7 @@ fun HistoryScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
         s.historyError?.let { item { Note(it, Down) } }
         if (s.address == null) item { Note("Connect a wallet on the Clock In tab to see your calls.") }
         else if (s.calls.isEmpty()) item { Note("No Clock Ins on this wallet yet.") }
-        items(s.calls, key = { it.signature }) { c -> CallRow(c, s, openUrl) }
+        items(s.calls, key = { it.signature }) { c -> CallRow(c, s, openUrl, onShare) }
     }
 }
 
@@ -63,7 +65,7 @@ private fun ScoreCell(who: String, sc: Grading.Score, modifier: Modifier) = Colu
 }
 
 @Composable
-private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = SectionCard {
+private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit, onShare: (OnChainCall) -> Unit) = SectionCard {
     val g = s.grades[c.signature]
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(c.call.coin, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
@@ -71,11 +73,15 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = Sec
         Text(Format.dayTime(c.blockTime), color = Muted, modifier = Modifier.weight(1f))
         if (g != null) Text(Format.pct(g.movePct), color = if (g.movePct >= 0) Up else Down, fontWeight = FontWeight.Bold)
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("You ", color = Muted); Pill(dirLabel(c.call.you), dirColor(c.call.you))
-        Spacer(Modifier.width(12.dp))
-        Text("SMT ", color = Muted); Pill(leanLabel(c.call.smtLean), leanColor(c.call.smtLean))
-        Spacer(Modifier.width(6.dp))
+    // Wraps instead of overflowing with large system fonts.
+    androidx.compose.foundation.layout.FlowRow(
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("You", color = Muted); Pill(dirLabel(c.call.you), dirColor(c.call.you))
+        Spacer(Modifier.width(8.dp))
+        Text("SMT", color = Muted); Pill(leanLabel(c.call.smtLean), leanColor(c.call.smtLean))
         Text("${c.call.smtConvictionPct}% ${c.call.smtAction.lowercase()}", color = Muted)
     }
     if (g == null) {
@@ -87,6 +93,10 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit) = Sec
             Text("SMT: ${outcomeMark(g.smt)}", color = outcomeColor(g.smt), modifier = Modifier.weight(1f))
         }
         Note("${Format.price(g.entryPx)} → ${Format.price(g.exitPx)} (${g.source})")
+        if (g.memoMismatch) Note("This memo's price didn't match the market's, so it isn't on the leaderboard.", Down)
     }
-    TextButton(onClick = { openUrl(DevnetRpc.explorerTx(c.signature)) }, modifier = Modifier.focusRing()) { Text("Transaction ${c.signature.take(8)}…") }
+    Row {
+        TextButton(onClick = { openUrl(DevnetRpc.explorerTx(c.signature)) }, modifier = Modifier.focusRing()) { Text("Transaction ${c.signature.take(8)}…") }
+        TextButton(onClick = { onShare(c) }, modifier = Modifier.focusRing()) { Text("Share") }
+    }
 }

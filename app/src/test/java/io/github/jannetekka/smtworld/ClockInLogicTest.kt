@@ -27,6 +27,34 @@ class ClockInLogicTest {
         assertTrue(memo.toByteArray().size < 120)
     }
 
+    @Test fun memoFieldWithTwoMemos() {
+        // What getSignaturesForAddress returns for a two-memo Clock In: "[len] text; [len] text".
+        val memo = call.toMemo()
+        val field = "[${memo.length}] $memo; [12] SMT Clock In"
+        assertEquals(listOf(memo, "SMT Clock In"), ClockInCall.segments(field))
+        assertEquals(call, ClockInCall.parse(field))
+        // Order doesn't matter, and a "; " inside a memo can't split it.
+        assertEquals(call, ClockInCall.parse("[12] SMT Clock In; [${memo.length}] $memo"))
+        assertEquals(listOf("a; b", "c"), ClockInCall.segments("[4] a; b; [1] c"))
+    }
+
+    @Test fun skrCallsRoundTripWithoutAnSmtCall() {
+        val skr = ClockInCall("SKR", Dir.UP, 0.01732442, "coingecko", Lean.FLAT, 0, "NOCALL")
+        assertEquals("SMT Clock In v1 | SKR | me UP @ 0.01732442 coingecko | SMT FLAT 0% NOCALL | grade +4h", skr.toMemo())
+        assertEquals(skr, ClockInCall.parse(skr.toMemo()))
+        assertEquals(io.github.jannetekka.smtworld.clockin.Outcome.NOT_SCORED, Grading.grade(skr, 0.0173, 0.0180, "coingecko").smt)
+        assertTrue("SKR" in io.github.jannetekka.smtworld.market.Prices.GAME_COINS)
+        assertTrue("SKR" !in io.github.jannetekka.smtworld.market.Prices.COINS)
+    }
+
+    @Test fun shareCaptionSaysWhatHappened() {
+        val oc = OnChainCall("sig", 1791354900L, call)
+        val ShareCard = io.github.jannetekka.smtworld.share.ShareCard
+        assertTrue(ShareCard.caption(oc, null).startsWith("I called BTC UP for the next 4h"))
+        assertTrue(ShareCard.caption(oc, Grading.grade(call, 100.0, 101.0, "binance")).startsWith("I called BTC UP and beat SMT"))
+        assertTrue(ShareCard.caption(oc, Grading.grade(call, 100.0, 99.0, "binance")).contains("-1.00%"))
+    }
+
     @Test fun memoParserRejectsOtherMemos() {
         assertNull(ClockInCall.parse(null))
         assertNull(ClockInCall.parse("gm"))

@@ -52,6 +52,20 @@ class DevnetRoundTripTest {
         println("[E2E] simulate err=$err logs=${sim.optJSONArray("logs")}")
         assertTrue("devnet rejected the transaction itself: $err", err == null || err.contains("AccountNotFound"))
 
+        // Stage 1b: run both instructions as a funded wallet would, without its key: signature
+        // checks off, any funded devnet address as the payer (DEVNET_E2E_FUNDED_PAYER).
+        System.getenv("DEVNET_E2E_FUNDED_PAYER")?.let { funded ->
+            val asFunded = MemoTransaction.unsigned(Base58.decode(funded), rpc.latestBlockhash(), call.toMemo())
+            val run = rpc.raw("simulateTransaction", JSONArray().put(java.util.Base64.getEncoder().encodeToString(asFunded))
+                .put(JSONObject().put("encoding", "base64").put("sigVerify", false).put("replaceRecentBlockhash", true)))
+                .getJSONObject("result").getJSONObject("value")
+            val logs = run.optJSONArray("logs").toString()
+            println("[E2E] as $funded: err=${run.opt("err")} logs=$logs")
+            assertTrue("execution failed: ${run.opt("err")}", run.isNull("err"))
+            assertTrue(logs.contains("Program ${MemoTransaction.MEMO_PROGRAM_ID} success"))
+            assertTrue(logs.contains("Program ${MemoTransaction.MEMO_V1_PROGRAM_ID} success"))
+        }
+
         // Stage 2: a real send, if the key is funded (or the airdrop answers).
         var balance = rpc.balanceLamports(addr)
         if (balance < 100_000) {

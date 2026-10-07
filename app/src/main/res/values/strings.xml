@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SMT World</string>
+    <string name="widget_description">Your Clock In streak, and whether you\'ve made today\'s call.</string>
 </resources>

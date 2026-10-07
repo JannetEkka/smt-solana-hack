@@ -41,11 +41,29 @@ class Store(context: Context) {
 
     fun putGrade(signature: String, g: Grade) { grades = grades + (signature to g) }
 
+    /** Every player's Clock Ins, as last read from the registry address. */
+    var boardCalls: List<OnChainCall>
+        get() = readCalls(p.getString("board_calls", null))
+        set(v) = p.edit().putString("board_calls", writeCalls(v)).apply()
+
+    /** Transaction signature → the wallet that paid for it (never changes, so cached for good). */
+    var payers: Map<String, String>
+        get() = p.getString("payers", null)?.let { s -> org.json.JSONObject(s).let { o -> o.keys().asSequence().associateWith { o.getString(it) } } } ?: emptyMap()
+        set(v) = p.edit().putString("payers", org.json.JSONObject(v as Map<*, *>).toString()).apply()
+
+    /** Forgets this wallet. Grades stay: they are keyed by transaction and shared with the leaderboard. */
     fun clearWallet() {
-        p.edit().remove("address").remove("auth_token").remove("calls").remove("grades").apply()
+        p.edit().remove("address").remove("auth_token").remove("calls").apply()
     }
 
+    /** Transaction → how many grading attempts failed; after [MAX_GRADE_TRIES] it is skipped. */
+    var gradeFails: Map<String, Int>
+        get() = p.getString("grade_fails", null)?.let { s -> org.json.JSONObject(s).let { o -> o.keys().asSequence().associateWith { o.getInt(it) } } } ?: emptyMap()
+        set(v) = p.edit().putString("grade_fails", org.json.JSONObject(v as Map<*, *>).toString()).apply()
+
     companion object {
+        const val MAX_GRADE_TRIES = 4
+
         fun writeCalls(calls: List<OnChainCall>): String = JSONArray().apply {
             calls.forEach { put(JSONObject().put("sig", it.signature).put("t", it.blockTime).put("memo", it.call.toMemo())) }
         }.toString()
@@ -62,7 +80,7 @@ class Store(context: Context) {
         fun writeGrades(m: Map<String, Grade>): String = JSONObject().apply {
             m.forEach { (sig, g) ->
                 put(sig, JSONObject().put("in", g.entryPx).put("out", g.exitPx).put("src", g.source)
-                    .put("you", g.you.name).put("smt", g.smt.name))
+                    .put("you", g.you.name).put("smt", g.smt.name).put("mm", g.memoMismatch))
             }
         }.toString()
 
@@ -72,7 +90,7 @@ class Store(context: Context) {
             return o.keys().asSequence().associateWith { k ->
                 val g = o.getJSONObject(k)
                 Grade(g.getDouble("in"), g.getDouble("out"), g.getString("src"),
-                    Outcome.valueOf(g.getString("you")), Outcome.valueOf(g.getString("smt")))
+                    Outcome.valueOf(g.getString("you")), Outcome.valueOf(g.getString("smt")), g.optBoolean("mm", false))
             }
         }
     }

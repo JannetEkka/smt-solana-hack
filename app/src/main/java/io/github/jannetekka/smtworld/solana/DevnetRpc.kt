@@ -43,6 +43,43 @@ class DevnetRpc(private val endpoint: String = DEVNET) {
 
     // ---- plumbing
 
+    /**
+     * The fee payer (the player) of each transaction, in batched requests of [chunk]. Responses in a
+     * batch can come back in any order, so they are matched by id. Unknown or pruned ones are left out.
+     */
+    fun feePayers(signatures: List<String>, chunk: Int = 25): Map<String, String> {
+        val out = HashMap<String, String>()
+        for (part in signatures.chunked(chunk)) {
+            val batch = JSONArray()
+            part.forEachIndexed { i, sig ->
+                batch.put(JSONObject().put("jsonrpc", "2.0").put("id", i).put("method", "getTransaction")
+                    .put("params", JSONArray().put(sig).put(JSONObject().put("encoding", "json")
+                        .put("maxSupportedTransactionVersion", 0).put("commitment", "confirmed"))))
+            }
+            // A throttled or rejected chunk answers with one error object instead of an array: skip
+            // that chunk and keep the others, so one bad chunk doesn't lose the whole sync.
+            val res = runCatching { JSONArray(Http.postJson(endpoint, batch.toString(), timeoutMs = 20_000)) }.getOrNull() ?: continue
+            for (k in 0 until res.length()) {
+                val r = res.getJSONObject(k)
+                val tx = r.optJSONObject("result") ?: continue
+                val keys = tx.getJSONObject("transaction").getJSONObject("message").getJSONArray("accountKeys")
+                out[part[r.getInt("id")]] = keys.getString(0)
+            }
+        }
+        return out
+    }
+
+    /** Total balance of one SPL token held by [owner] (all its token accounts), in whole tokens. */
+    fun tokenBalance(owner: String, mint: String): Double {
+        val r = call("getTokenAccountsByOwner", JSONArray().put(owner).put(JSONObject().put("mint", mint))
+            .put(JSONObject().put("encoding", "jsonParsed").put("commitment", "confirmed")))
+        val accounts = r.getJSONArray("value")
+        return (0 until accounts.length()).sumOf { i ->
+            accounts.getJSONObject(i).getJSONObject("account").getJSONObject("data").getJSONObject("parsed")
+                .getJSONObject("info").getJSONObject("tokenAmount").optDouble("uiAmount", 0.0)
+        }
+    }
+
     /** One JSON-RPC request; the whole response object. Public so tests can call methods the app never needs. */
     fun raw(method: String, params: JSONArray): JSONObject {
         val req = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", method).put("params", params)
@@ -56,6 +93,8 @@ class DevnetRpc(private val endpoint: String = DEVNET) {
 
     companion object {
         const val DEVNET = "https://api.devnet.solana.com"
+        /** Mainnet, read-only: the app only ever reads balances here and never sends anything. */
+        const val MAINNET = "https://api.mainnet-beta.solana.com"
         const val LAMPORTS_PER_SOL = 1_000_000_000L
         fun explorerTx(signature: String) = "https://explorer.solana.com/tx/$signature?cluster=devnet"
         fun explorerAddress(address: String) = "https://explorer.solana.com/address/$address?cluster=devnet"

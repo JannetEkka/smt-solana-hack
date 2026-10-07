@@ -18,12 +18,14 @@ import io.github.jannetekka.smtworld.clockin.Dir
 import io.github.jannetekka.smtworld.clockin.Grade
 import io.github.jannetekka.smtworld.clockin.Grading
 import io.github.jannetekka.smtworld.clockin.Lean
+import io.github.jannetekka.smtworld.clockin.Leaderboard
 import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.clockin.Streak
 import io.github.jannetekka.smtworld.data.Repo
 import io.github.jannetekka.smtworld.market.Prices
 import io.github.jannetekka.smtworld.market.Quote
 import io.github.jannetekka.smtworld.notify.Reminders
+import io.github.jannetekka.smtworld.widget.StreakWidget
 import io.github.jannetekka.smtworld.smt.SmtCall
 import io.github.jannetekka.smtworld.smt.SmtFeed
 import io.github.jannetekka.smtworld.solana.Base58
@@ -65,8 +67,14 @@ data class UiState(
     /** SMT's call exactly as it was when the memo was built: what the reveal shows. */
     val revealed: SmtCall? = null,
     val remindersOn: Boolean = true,
+    /** SKR held by this wallet on mainnet (read-only); null until read. */
+    val skrBalance: Double? = null,
+    val board: List<Leaderboard.Entry> = emptyList(),
+    val boardLoading: Boolean = false,
+    val boardError: String? = null,
     val nowSec: Long = System.currentTimeMillis() / 1000,
 ) {
+    val boardRows: List<Leaderboard.Row> by lazy { Leaderboard.rows(board, grades) }
     // Derived once per state, not on every recomposition.
     val days: Set<Long> by lazy { calls.map { Streak.localDay(it.blockTime) }.toSet() }
     val today: Long by lazy { Streak.localDay(nowSec) }
@@ -83,6 +91,7 @@ data class UiState(
 /** What the screens can ask for. Kept separate so screens render (and screenshot) without a view model. */
 interface UiActions {
     fun refresh()
+    fun refreshBoard() {}
     fun selectCoin(c: String)
     fun pick(d: Dir)
     fun resetSend()
@@ -97,7 +106,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             identityUri = Uri.parse(SmtFeed.SITE.removeSuffix("/")),
             iconUri = Uri.parse("smt_logo.png"),
             identityName = "SMT World",
-        )
+        ),
+        // 3 minutes per wallet request (the library's default is 90 s): a first-time user reads
+        // the wallet's "unknown site" warning before approving, and that took longer than 90 s.
+        timeout = 180_000,
     ).apply {
         blockchain = Solana.Devnet
         authToken = store.authToken
@@ -111,6 +123,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             grades = store.grades,
             smt = store.decisionsJson?.let { runCatching { SmtFeed.parse(it) }.getOrNull() } ?: emptyMap(),
             remindersOn = store.remindersOn,
+            board = repo.boardEntries(),
         )
     )
     val state: StateFlow<UiState> = _state
@@ -132,12 +145,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
             val addr = store.address
             val history = async(io) { addr?.let { a -> runCatching { repo.syncHistory(a) } } }
             val balance = async(io) { addr?.let { a -> runCatching { repo.rpc.balanceLamports(a) } } }
+            val readSkr = addr != null && (addr != skrFor || System.currentTimeMillis() - skrReadMs > 600_000)
+            val skr = async(io) { if (readSkr) runCatching { mainnet.tokenBalance(addr!!, Prices.SKR_MINT) } else null }
 
             val p = prices.await()
             val f = feed.await()
             f.getOrNull()?.first?.let { store.decisionsJson = it }
             val h = history.await()
             val b = balance.await()
+            val k = skr.await()
+            if (k?.isSuccess == true) { skrFor = addr; skrReadMs = System.currentTimeMillis() }
             _state.update { s ->
                 s.copy(
                     prices = p.getOrNull() ?: s.prices,
@@ -147,20 +164,50 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     calls = if (h?.isSuccess == true) store.calls else s.calls,
                     historyError = h?.exceptionOrNull()?.let { "Devnet did not answer: ${it.message}" },
                     balanceSol = b?.getOrNull()?.let { it.toDouble() / DevnetRpc.LAMPORTS_PER_SOL } ?: s.balanceSol,
+                    skrBalance = k?.getOrNull() ?: s.skrBalance,
                     loading = false,
                 )
             }
             if (f.isFailure) Log.w(Repo.TAG, "[FEED] SMT feed fetch failed, using cache: ${f.exceptionOrNull()?.message}")
+            if (h?.isSuccess == true) StreakWidget.refresh(getApplication())
+            if (boardRefreshedMs > 0) refreshBoard() else gradeDue()   // the board run grades too
+        }
+    }
+
+    private var boardRefreshedMs = 0L
+
+    /** Reads every player's Clock Ins from the registry address, then grades what's due. */
+    override fun refreshBoard() {
+        if (_state.value.boardLoading) return
+        boardRefreshedMs = System.currentTimeMillis()
+        viewModelScope.launch {
+            _state.update { it.copy(boardLoading = true) }
+            val r = withContext(Dispatchers.IO) { runCatching { repo.syncLeaderboard() } }
+            _state.update { it.copy(board = r.getOrNull() ?: it.board, boardLoading = false,
+                boardError = r.exceptionOrNull()?.let { e -> "Devnet did not answer: ${e.message}" }) }
             gradeDue()
         }
     }
 
+    private val grading = kotlinx.coroutines.sync.Mutex()
+
+    /** One grading run at a time: overlapping runs would fetch and grade the same calls twice. */
     private suspend fun gradeDue() {
-        val newly = withContext(Dispatchers.IO) { repo.gradeDue() }
-        if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
+        if (!grading.tryLock()) return
+        try {
+            val newly = withContext(Dispatchers.IO) { repo.gradeDue() }
+            if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
+        } finally {
+            grading.unlock()
+        }
     }
 
     private var lastRefreshMs = 0L
+
+    /** Mainnet is read for one thing, the SKR balance, and at most every 10 minutes (public RPC limits). */
+    private val mainnet = DevnetRpc(DevnetRpc.MAINNET)
+    private var skrFor: String? = null
+    private var skrReadMs = 0L
 
     /**
      * Back in the foreground: a wallet app may have been installed meanwhile (Fire TV never has
@@ -204,7 +251,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
     fun forgetWallet() {
         store.clearWallet()
         wallet.authToken = null
-        _state.update { it.copy(address = null, balanceSol = null, calls = emptyList(), grades = emptyMap(), send = SendState.Idle) }
+        StreakWidget.refresh(getApplication())
+        _state.update { it.copy(address = null, balanceSol = null, skrBalance = null, calls = emptyList(), send = SendState.Idle) }
     }
 
     /**
@@ -251,6 +299,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     val oc = OnChainCall(sig, System.currentTimeMillis() / 1000, call)
                     repo.addLocal(oc)
                     Reminders.scheduleGrade(getApplication(), oc.dueAt)
+                    StreakWidget.refresh(getApplication())
                     Log.i(Repo.TAG, "[CLOCKIN] sent ${call.toMemo()} sig=$sig")
                     _state.update {
                         it.copy(send = SendState.Done(sig), lastSent = oc, revealed = snapshot, calls = store.calls,
@@ -273,6 +322,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         val now = System.currentTimeMillis() / 1000
         val fresh = smt?.asOfEpochSec?.let { now - it < STALE_AFTER_SEC } ?: false
         return when {
+            coin !in Prices.COINS -> ClockInCall(coin, dir, quote.px, quote.source, Lean.FLAT, 0, "NOCALL")
             smt == null -> ClockInCall(coin, dir, quote.px, quote.source, Lean.FLAT, 0, "NOFEED")
             !fresh -> ClockInCall(coin, dir, quote.px, quote.source, Lean.FLAT, smt.convictionPct, "STALE")
             else -> ClockInCall(coin, dir, quote.px, quote.source, smt.lean, smt.convictionPct, smt.action)
@@ -283,7 +333,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         val addr = Base58.encode(pk)
         if (store.address != addr) {
             store.clearWallet()
-            _state.update { it.copy(calls = emptyList(), grades = emptyMap()) }
+            _state.update { it.copy(calls = emptyList(), skrBalance = null) }
+            StreakWidget.refresh(getApplication())
         }
         store.address = addr
         store.authToken = wallet.authToken
@@ -292,7 +343,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
 
     /** A wallet can drop our saved session; on "Auth token invalid" forget it and ask once more. */
     private suspend fun <T> withAuthRetry(op: suspend () -> TransactionResult<T>): TransactionResult<T> {
-        val first = guarded(op)
+        var first = guarded(op)
+        // A wallet starting cold (or asking for its PIN) can miss MWA's 10-second window to open
+        // the local connection. Nothing was signed at that stage, so one retry is safe; the
+        // wallet is awake by then. Never retried after signing has started (no double send).
+        if (first is TransactionResult.Failure && isAssociationFailure(first.message)) {
+            Log.w(Repo.TAG, "[WALLET] association failed (${first.message}); retrying once")
+            first = guarded(op)
+        }
         if (first is TransactionResult.Failure && first.message.contains("Auth token", ignoreCase = true)) {
             wallet.authToken = null
             store.authToken = null
@@ -314,10 +372,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         TransactionResult.Failure("Network error: ${e.message}", e)
     }
 
+    private fun isAssociationFailure(msg: String) =
+        msg.contains("local association", true) || msg.contains("association intent", true)
+
     private fun friendly(msg: String, e: Exception): String = when {
         msg.contains("did not authorize", true) || msg.contains("declined", true) ||
             msg.contains("interrupted", true) || msg.contains("cancelled", true) -> "Cancelled in the wallet. Nothing was sent."
-        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Open it once, then try again."
+        isAssociationFailure(msg) -> "Couldn't reach the wallet app. Open Solflare or Phantom once, then tap Clock in again."
+        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Nothing was sent. Try again."
         msg.contains("not all transactions were submitted", true) || msg.contains("Not submitted", true) ->
             "The wallet signed but could not send. Is it on Devnet, with a little devnet SOL? (faucet.solana.com)"
         else -> "$msg${e.cause?.message?.let { " ($it)" } ?: ""}"
