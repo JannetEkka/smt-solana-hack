@@ -198,9 +198,17 @@ private fun RevealCard(s: UiState, signature: String, openUrl: (String) -> Unit)
     Note("Memo: ${oc.call.toMemo()}")
     Spacer(Modifier.height(4.dp))
     Text("Now, SMT's call on ${oc.call.coin}", color = GoldSoft, style = MaterialTheme.typography.titleMedium)
-    val smt = s.smt[oc.call.coin]
-    if (smt == null) Note("SMT's feed was unreachable, so SMT has no call recorded this time.", Down)
-    else SmtCallBody(smt, s.smtAgeHours(oc.call.coin))
+    // The call that went into the memo, not whatever the feed says now.
+    val smt = s.revealed
+    when {
+        oc.call.smtAction == "NOFEED" || smt == null ->
+            Note("SMT's feed didn't answer, so SMT has no call on chain this time.", Down)
+        oc.call.smtAction == "STALE" -> {
+            Note("SMT's feed was too old to count, so its call isn't on chain or graded this time. Its last call was:", GoldSoft)
+            SmtCallBody(smt, smt.asOfEpochSec?.let { ((oc.blockTime - it) / 3600.0).coerceAtLeast(0.0) })
+        }
+        else -> SmtCallBody(smt, smt.asOfEpochSec?.let { ((oc.blockTime - it) / 3600.0).coerceAtLeast(0.0) })
+    }
 }
 
 @Composable

@@ -39,10 +39,14 @@ object Prices {
 
     fun spot(coin: String): Quote = spotAll()[coin] ?: throw IllegalStateException("no price for $coin")
 
-    /** The price at a past moment from one named source, or null if that source has no data yet. */
-    fun at(coin: String, epochSec: Long, source: String): Quote? = when (source) {
+    /**
+     * The price at a past moment from one named source, or null if that source has no data yet.
+     * [notBefore]: only a price from at or after the moment counts (grading the end of a horizon
+     * on an earlier price would grade a shorter move). Binance's 1-minute candle already is.
+     */
+    fun at(coin: String, epochSec: Long, source: String, notBefore: Boolean = false): Quote? = when (source) {
         BINANCE -> binanceAt(coin, epochSec)
-        COINGECKO -> coingeckoAt(coin, epochSec)
+        COINGECKO -> coingeckoAt(coin, epochSec, notBefore)
         else -> null
     }
 
@@ -54,14 +58,16 @@ object Prices {
     }
 
     /** CoinGecko's nearest point within 45 minutes (5-minute data for the last day, hourly before). */
-    private fun coingeckoAt(coin: String, epochSec: Long): Quote? {
+    private fun coingeckoAt(coin: String, epochSec: Long, notBefore: Boolean): Quote? {
         val id = CG_IDS[coin] ?: return null
         val o = JSONObject(Http.get("$CG/coins/$id/market_chart/range?vs_currency=usd&from=${epochSec - 2700}&to=${epochSec + 2700}"))
         val prices = o.optJSONArray("prices") ?: return null
         var best: Pair<Long, Double>? = null
         for (i in 0 until prices.length()) {
             val p = prices.getJSONArray(i)
-            val dt = kotlin.math.abs(p.getLong(0) / 1000 - epochSec)
+            val t = p.getLong(0) / 1000
+            if (notBefore && t < epochSec - 60) continue
+            val dt = kotlin.math.abs(t - epochSec)
             if (best == null || dt < best.first) best = dt to p.getDouble(1)
         }
         return best?.let { Quote(it.second, COINGECKO) }

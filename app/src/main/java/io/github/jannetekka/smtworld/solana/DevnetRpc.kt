@@ -26,8 +26,9 @@ class DevnetRpc(private val endpoint: String = DEVNET) {
     }
 
     /** Newest first. The RPC returns each transaction's memo text, so history needs one request. */
-    fun signaturesForAddress(address: String, limit: Int = 200): List<SignatureInfo> {
+    fun signaturesForAddress(address: String, limit: Int = 200, before: String? = null): List<SignatureInfo> {
         val opts = JSONObject().put("limit", limit).put("commitment", "confirmed")
+        if (before != null) opts.put("before", before)
         val arr = callArray("getSignaturesForAddress", JSONArray().put(address).put(opts))
         return (0 until arr.length()).map { i ->
             val o = arr.getJSONObject(i)

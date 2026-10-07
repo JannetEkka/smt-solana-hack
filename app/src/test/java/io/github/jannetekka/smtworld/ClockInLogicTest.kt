@@ -104,6 +104,19 @@ class ClockInLogicTest {
         assertEquals(Lean.FLAT, SmtFeed.parse(text).getValue("XRP").lean)
     }
 
+    @Test fun oddFeedActionsStillMakeReadableMemos() {
+        val text = """{"BTC":{"action":"Long","conf":0.5,"votes":{}},"ETH":{"action":"NO_TRADE","conf":0.2,"votes":{}},"SOL":{"action":"","conf":0.1,"votes":{}}}"""
+        val feed = SmtFeed.parse(text)
+        assertEquals("LONG", feed.getValue("BTC").action)
+        assertEquals(Lean.UP, feed.getValue("BTC").lean)
+        assertEquals("NOTRADE", feed.getValue("ETH").action)
+        assertEquals("WAIT", feed.getValue("SOL").action)
+        for (c in feed.values) {
+            val memo = call.copy(coin = c.coin, smtAction = c.action, smtLean = c.lean).toMemo()
+            assertEquals(c.action, ClockInCall.parse(memo)!!.smtAction)
+        }
+    }
+
     @Test fun isoTimestamps() {
         assertEquals(1791306644L, SmtFeed.parseIso("2026-10-06T17:10:44.773432+00:00"))
         assertEquals(1791306644L - 19800, SmtFeed.parseIso("2026-10-06T17:10:44+05:30"))

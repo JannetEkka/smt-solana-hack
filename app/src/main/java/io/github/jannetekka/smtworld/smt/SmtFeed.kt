@@ -60,7 +60,8 @@ object SmtFeed {
             }
             out[coin] = SmtCall(
                 coin = coin,
-                action = o.optString("action", "WAIT"),
+                // Upper-case letters only: the action goes into the memo, whose parser accepts [A-Z]+.
+                action = o.optString("action", "WAIT").uppercase().filter { it in 'A'..'Z' }.take(12).ifEmpty { "WAIT" },
                 conf = o.optDouble("conf", 0.0),
                 why = o.optString("why", ""),
                 asOfEpochSec = parseIso(o.optString("as_of", "")),

@@ -60,6 +60,11 @@ object Reminders {
         Log.i(Repo.TAG, "[REMINDER] daily nudge scheduled for ${next.time}")
     }
 
+    fun cancelDaily(ctx: Context) {
+        WorkManager.getInstance(ctx).cancelUniqueWork("daily-clock-in")
+        Log.i(Repo.TAG, "[REMINDER] daily nudge off")
+    }
+
     fun scheduleGrade(ctx: Context, dueAtSec: Long) {
         val delayMs = (dueAtSec + 120) * 1000 - System.currentTimeMillis()
         val req = OneTimeWorkRequestBuilder<GradeWorker>()
@@ -115,14 +120,19 @@ class GradeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         val addr = repo.store.address
         if (addr != null) runCatching { repo.syncHistory(addr) }
         val graded = repo.gradeDue()
-        for ((c, g) in graded) {
+        // Grades are always saved; the notification respects the reminders switch.
+        if (repo.store.remindersOn) for ((c, g) in graded) {
             val you = when (g.you) { Outcome.RIGHT -> "you were right"; Outcome.WRONG -> "you were wrong"; else -> "no move" }
             val smt = when (g.smt) { Outcome.RIGHT -> "SMT was right"; Outcome.WRONG -> "SMT was wrong"; else -> "SMT sat it out" }
             Reminders.postGrade(applicationContext, c.signature.hashCode(),
                 "${c.call.coin} ${c.call.you.name} call graded",
                 "${"%+.2f".format(g.movePct)}% in ${c.call.horizonHours}h: $you, $smt.")
         }
-        return if (repo.store.calls.any { it.signature !in repo.store.grades && it.dueAt * 1000 < System.currentTimeMillis() - 600_000 })
-            Result.retry() else Result.success()
+        // Retry a few times for a call that came due in the last day and couldn't be priced yet
+        // (an API down for a while); after that the app grades it on its next refresh.
+        val now = System.currentTimeMillis() / 1000
+        val grades = repo.store.grades
+        val stuck = repo.store.calls.any { it.signature !in grades && it.dueAt + 600 < now && now - it.dueAt < 86_400 }
+        return if (stuck && runAttemptCount < 5) Result.retry() else Result.success()
     }
 }

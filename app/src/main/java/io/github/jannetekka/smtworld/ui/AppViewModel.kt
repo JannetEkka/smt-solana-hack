@@ -62,17 +62,20 @@ data class UiState(
     val loading: Boolean = false,
     val send: SendState = SendState.Idle,
     val lastSent: OnChainCall? = null,
+    /** SMT's call exactly as it was when the memo was built: what the reveal shows. */
+    val revealed: SmtCall? = null,
     val remindersOn: Boolean = true,
     val nowSec: Long = System.currentTimeMillis() / 1000,
 ) {
-    val days: Set<Long> get() = calls.map { Streak.localDay(it.blockTime) }.toSet()
-    val today: Long get() = Streak.localDay(nowSec)
-    val streak: Int get() = Streak.current(days, today)
-    val bestStreak: Int get() = Streak.best(days)
+    // Derived once per state, not on every recomposition.
+    val days: Set<Long> by lazy { calls.map { Streak.localDay(it.blockTime) }.toSet() }
+    val today: Long by lazy { Streak.localDay(nowSec) }
+    val streak: Int by lazy { Streak.current(days, today) }
+    val bestStreak: Int by lazy { Streak.best(days) }
     val clockedInToday: Boolean get() = today in days
-    val todaysCalls: List<OnChainCall> get() = calls.filter { Streak.localDay(it.blockTime) == today }
-    val scoreYou get() = Grading.scoreYou(grades.filterKeys { k -> calls.any { it.signature == k } }.values)
-    val scoreSmt get() = Grading.scoreSmt(grades.filterKeys { k -> calls.any { it.signature == k } }.values)
+    private val shownGrades by lazy { calls.map { it.signature }.toSet().let { sigs -> grades.filterKeys { it in sigs }.values } }
+    val scoreYou by lazy { Grading.scoreYou(shownGrades) }
+    val scoreSmt by lazy { Grading.scoreSmt(shownGrades) }
     /** Hours since SMT's feed for the chosen coin was written; null if unknown. */
     fun smtAgeHours(coin: String): Double? = smt[coin]?.asOfEpochSec?.let { ((nowSec - it) / 3600.0).coerceAtLeast(0.0) }
 }
@@ -141,7 +144,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     pricesError = p.exceptionOrNull()?.let { "Prices unavailable: ${it.message}" },
                     smt = f.getOrNull()?.second ?: s.smt,
                     smtError = f.exceptionOrNull()?.let { "SMT's feed did not answer; showing the last copy." },
-                    calls = h?.getOrNull() ?: s.calls,
+                    calls = if (h?.isSuccess == true) store.calls else s.calls,
                     historyError = h?.exceptionOrNull()?.let { "Devnet did not answer: ${it.message}" },
                     balanceSol = b?.getOrNull()?.let { it.toDouble() / DevnetRpc.LAMPORTS_PER_SOL } ?: s.balanceSol,
                     loading = false,
@@ -170,13 +173,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         if (!busy && System.currentTimeMillis() - lastRefreshMs > 120_000) refresh()
     }
 
-    override fun selectCoin(c: String) = _state.update { it.copy(coin = c, pick = null, send = SendState.Idle) }
+    override fun selectCoin(c: String) = _state.update {
+        // Picking a coin starts a new call; keep the reveal of the one just sent until then.
+        if (it.send is SendState.Done) it.copy(coin = c, pick = null) else it.copy(coin = c, pick = null, send = SendState.Idle)
+    }
     override fun pick(d: Dir) = _state.update { it.copy(pick = d) }
-    override fun resetSend() = _state.update { it.copy(send = SendState.Idle, pick = null) }
+    override fun resetSend() = _state.update { it.copy(send = SendState.Idle, pick = null, revealed = null) }
 
     override fun setReminders(on: Boolean) {
         store.remindersOn = on
-        if (on) Reminders.scheduleDaily(getApplication())
+        if (on) Reminders.scheduleDaily(getApplication()) else Reminders.cancelDaily(getApplication())
         _state.update { it.copy(remindersOn = on) }
     }
 
@@ -225,6 +231,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                 return@launch
             }
             val call = buildCall(coin, dir, quote, smt)
+            val snapshot = smt
             _state.update { it.copy(send = SendState.InWallet) }
             val r = withAuthRetry {
                 wallet.transact(sender) { auth ->
@@ -246,7 +253,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     Reminders.scheduleGrade(getApplication(), oc.dueAt)
                     Log.i(Repo.TAG, "[CLOCKIN] sent ${call.toMemo()} sig=$sig")
                     _state.update {
-                        it.copy(send = SendState.Done(sig), lastSent = oc, calls = store.calls,
+                        it.copy(send = SendState.Done(sig), lastSent = oc, revealed = snapshot, calls = store.calls,
                             smt = store.decisionsJson?.let { j -> runCatching { SmtFeed.parse(j) }.getOrNull() } ?: it.smt,
                             nowSec = System.currentTimeMillis() / 1000)
                     }
