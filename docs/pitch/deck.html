@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>SMT World: Clock In</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  @page { size: 1920px 1080px; margin: 0; }
+  :root {
+    --navy: #081a34; --raised: #0f2747; --line: #1f3b63;
+    --gold: #d4af37; --gold-soft: #f3d98b; --ink: #e8eefb; --muted: #9fb4cf;
+    --up: #3ddc97; --down: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--navy); color: var(--ink); font-family: 'Plus Jakarta Sans', sans-serif; }
+  .slide {
+    width: 1920px; height: 1080px; padding: 96px 120px; position: relative; overflow: hidden;
+    page-break-after: always; break-after: page; display: flex; flex-direction: column;
+    background: radial-gradient(1200px 700px at 85% 0%, #12305a 0%, var(--navy) 60%);
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  .kicker { color: var(--gold); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 22px; margin-bottom: 20px; }
+  h1 { font-size: 104px; line-height: 1.02; font-weight: 800; letter-spacing: -0.02em; }
+  h2 { font-size: 64px; line-height: 1.08; font-weight: 800; letter-spacing: -0.01em; max-width: 1500px; }
+  p.lead { font-size: 36px; line-height: 1.4; color: var(--ink); max-width: 1300px; margin-top: 28px; }
+  .muted { color: var(--muted); }
+  .gold { color: var(--gold); }
+  .num { font-variant-numeric: tabular-nums; }
+  ul.points { list-style: none; margin-top: 44px; display: grid; gap: 26px; }
+  ul.points li { font-size: 32px; line-height: 1.4; padding-left: 44px; position: relative; max-width: 1000px; }
+  ul.points li::before { content: ""; position: absolute; left: 0; top: 16px; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); }
+  .row { display: flex; gap: 72px; align-items: flex-start; flex: 1; }
+  .col { flex: 1; }
+  .phone { width: 340px; border-radius: 40px; border: 10px solid #1b2c46; box-shadow: 0 30px 80px rgba(0,0,0,.45); overflow: hidden; background: #000; flex: none; }
+  .phone img { display: block; width: 100%; }
+  .phones { display: flex; gap: 48px; margin-top: 40px; }
+  .step { display: flex; flex-direction: column; gap: 16px; width: 360px; }
+  .step .n { font-size: 26px; font-weight: 800; color: var(--navy); background: var(--gold); width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; }
+  .step p { font-size: 24px; line-height: 1.35; }
+  .caption { position: absolute; bottom: 44px; right: 120px; font-size: 20px; color: var(--muted); }
+  .memo { font-family: 'JetBrains Mono', monospace; font-size: 31px; line-height: 1.5; background: #040f20; border: 2px solid var(--line); border-radius: 18px; padding: 30px 36px; margin-top: 40px; color: var(--gold-soft); max-width: 1680px; }
+  .memo b { color: var(--up); font-weight: 500; } .memo i { color: var(--down); font-style: normal; }
+  .card { background: var(--raised); border: 2px solid var(--line); border-radius: 22px; padding: 30px 34px; }
+  .card h3 { font-size: 30px; margin-bottom: 10px; color: var(--gold-soft); }
+  .card p { font-size: 25px; line-height: 1.45; color: var(--ink); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 26px; margin-top: 44px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; margin-top: 44px; }
+  .tv { width: 900px; border-radius: 16px; border: 10px solid #1b2c46; box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+  .title-row { display: flex; align-items: center; gap: 64px; margin-top: auto; margin-bottom: auto; }
+  .tag { display: inline-block; font-size: 24px; font-weight: 700; padding: 10px 20px; border-radius: 999px; border: 2px solid var(--gold); color: var(--gold); margin-right: 14px; margin-top: 18px; }
+  .links { font-family: 'JetBrains Mono', monospace; font-size: 28px; line-height: 1.8; color: var(--gold-soft); margin-top: 36px; }
+</style>
+</head>
+<body>
+
+<!-- 1. Title -->
+<section class="slide">
+  <div class="title-row">
+    <img src="img/logo.png" width="300" height="300" alt="Smart Money Trading logo">
+    <div>
+      <div class="kicker">Solana Mobile · Clock In · October 2026</div>
+      <h1>SMT World:<br><span class="gold">Clock In</span></h1>
+      <p class="lead">Call the market once a day. See what the AI called. Solana keeps the score for both of you.</p>
+      <div><span class="tag">Android APK</span><span class="tag">Mobile Wallet Adapter</span><span class="tag">Solana devnet</span></div>
+    </div>
+  </div>
+  <div class="muted" style="font-size:26px">Jannet Ekka · Smart Money Trading</div>
+</section>
+
+<!-- 2. Problem -->
+<section class="slide">
+  <div class="kicker">The problem</div>
+  <h2>Trading apps give you prices. AI trading agents give you claims.</h2>
+  <ul class="points">
+    <li>An AI agent's track record is whatever its operator's logs say. Nobody outside can check it.</li>
+    <li>A market app gives people no reason to open it tomorrow, except another price chart.</li>
+    <li>Clock In turns one prediction a day into a habit, and writes both sides of it on chain: yours and the AI's.</li>
+  </ul>
+</section>
+
+<!-- 3. How it works -->
+<section class="slide">
+  <div class="kicker">How a Clock In works</div>
+  <h2 style="font-size:56px">One call a day. Three taps.</h2>
+  <div class="phones" style="margin-top:28px">
+    <div class="step">
+      <div class="phone" style="width:300px"><img src="img/clock_in_s.png" alt="Clock In screen"></div>
+      <div class="n">1</div><p>Pick one of 8 coins. Call it UP or DOWN for the next 4 hours.</p>
+    </div>
+    <div class="step">
+      <div class="phone" style="width:300px"><img src="img/in_wallet_s.png" alt="Waiting for the wallet"></div>
+      <div class="n">2</div><p>Your wallet (Phantom or Solflare) signs one devnet transaction through Mobile Wallet Adapter.</p>
+    </div>
+    <div class="step">
+      <div class="phone" style="width:300px"><img src="img/reveal_s.png" alt="SMT's call revealed"></div>
+      <div class="n">3</div><p>Only then does SMT reveal its own call on that coin, with its reasons.</p>
+    </div>
+    <div class="step">
+      <div class="phone" style="width:300px"><img src="img/my_calls_s.png" alt="My calls and score"></div>
+      <div class="n">4</div><p>4 hours later both calls are graded against the real price. You get a notification.</p>
+    </div>
+  </div>
+  <div class="caption">Screens rendered from the app's code with sample data.</div>
+</section>
+
+<!-- 4. On chain -->
+<section class="slide">
+  <div class="kicker">The Solana part</div>
+  <h2>Every Clock In is a memo signed by your wallet.</h2>
+  <div class="memo">SMT Clock In v1 | BTC | me <b>UP</b> @ 85482.01 binance | SMT <i>DOWN</i> 36% WAIT | grade +4h</div>
+  <div class="grid2">
+    <div class="card"><h3>Both calls, one timestamp</h3><p>Your call and SMT's call land in the same transaction, so neither can be written after the market moves.</p></div>
+    <div class="card"><h3>Checkable without the app</h3><p>The memo is plain text with the entry price and its source. Anyone can re-grade a call from Solana Explorer and public price data.</p></div>
+    <div class="card"><h3>History lives on chain</h3><p>Streak and history are rebuilt from the wallet's transactions (getSignaturesForAddress), so a reinstall or a new phone loses nothing.</p></div>
+    <div class="card"><h3>Free to play</h3><p>Devnet only. A Clock In costs about 0.000005 devnet SOL from the public faucet. No real money moves.</p></div>
+  </div>
+</section>
+
+<!-- 5. The reveal -->
+<section class="slide">
+  <div class="row">
+    <div class="col">
+      <div class="kicker">The reveal</div>
+      <h2>An AI that shows its work.</h2>
+      <ul class="points">
+        <li>SMT is a multi-persona trading agent: order flow, whales &amp; on-chain, sentiment, technical, regime and catalyst each vote.</li>
+        <li>A judge turns the votes into a call and explains it in plain words, including why it's sitting a coin out.</li>
+        <li>When SMT sits out, the app grades its lean and says so. If the feed is more than 6 hours old, SMT isn't scored.</li>
+      </ul>
+    </div>
+    <div class="phone" style="width:420px"><img src="img/reveal.png" alt="SMT's reasons"></div>
+  </div>
+  <div class="caption">Screen rendered from the app's code with sample data. SMT's reasons are from its public feed.</div>
+</section>
+
+<!-- 6. Stickiness -->
+<section class="slide">
+  <div class="row">
+    <div class="phone" style="width:420px"><img src="img/my_calls.png" alt="You vs SMT score"></div>
+    <div class="col">
+      <div class="kicker">Why people come back</div>
+      <h2>A reason to open it every day.</h2>
+      <div class="grid2" style="grid-template-columns:1fr">
+        <div class="card"><h3>A streak kept on Solana</h3><p>Miss a day and it resets. It survives a lost phone.</p></div>
+        <div class="card"><h3>A result 4 hours later</h3><p>A notification when your call and SMT's are graded.</p></div>
+        <div class="card"><h3>You vs the AI</h3><p>A running score. Beating a trading agent is a better hook than a price alert.</p></div>
+        <div class="card"><h3>A 9:00 nudge</h3><p>Only if you haven't clocked in yet. One switch turns it off.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 7. Built during the hackathon -->
+<section class="slide">
+  <div class="kicker">Built during the hackathon</div>
+  <h2>A native Android app, written in October 2026.</h2>
+  <div class="row" style="margin-top:40px">
+    <div class="col">
+      <ul class="points" style="margin-top:0">
+        <li>Kotlin + Jetpack Compose. Three native tabs; SMT World's web app is one of them.</li>
+        <li>Mobile Wallet Adapter for connect and signAndSendTransactions.</li>
+        <li>The memo transaction is built by hand and matches solders (Rust solana-sdk) byte for byte. Devnet accepts it.</li>
+        <li>No Google Play Services. The same APK runs on Fire TV, where wallet features hide themselves.</li>
+        <li>Reused, already public: SMT World's web app and SMT's decisions feed. The trading agent itself isn't in the repo.</li>
+      </ul>
+    </div>
+    <img class="tv" src="img/fire_tv.png" alt="The app on a TV with no wallet installed" style="width:760px">
+  </div>
+</section>
+
+<!-- 8. Next -->
+<section class="slide">
+  <div class="kicker">What's next</div>
+  <h2>From a daily call to a public scoreboard.</h2>
+  <div class="grid3">
+    <div class="card"><h3>Leaderboard with no server</h3><p>The memos are public, so anyone can rank players, and SMT, straight from the chain.</p></div>
+    <div class="card"><h3>Mainnet and the dApp Store</h3><p>Publish on the Solana dApp Store and move the record to mainnet once the game is tuned.</p></div>
+    <div class="card"><h3>The full SMT World</h3><p>The same app grows into SMT World on phones and TVs, where users follow and copy the agent.</p></div>
+  </div>
+  <div style="display:flex; gap:56px; align-items:center; margin-top:56px">
+    <img src="img/qr_release.png" width="260" height="260" alt="QR code for the APK release" style="border-radius:16px">
+    <div>
+      <div style="font-size:34px; font-weight:800">Try it on an Android phone</div>
+      <div class="muted" style="font-size:26px; margin-top:10px">Scan for the APK. Set Phantom or Solflare to Devnet, get free SOL at faucet.solana.com.</div>
+      <div class="links" style="margin-top:20px">github.com/JannetEkka/smt-solana-hack</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>
