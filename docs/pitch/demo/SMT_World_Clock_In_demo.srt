@@ -1,0 +1,71 @@
+1
+00:00:00,000 --> 00:00:06,000
+SMT World: Clock In. Call the market once a day against an AI trading agent. Solana keeps the score.
+
+2
+00:00:06,000 --> 00:00:15,000
+It's a native Android app. The APK comes from the GitHub release, built by GitHub Actions from the public repo.
+
+3
+00:00:15,000 --> 00:00:24,767
+Once a day I call one coin UP or DOWN for the next 4 hours. Eight coins, with live prices from Binance.
+
+4
+00:00:24,767 --> 00:00:34,133
+I call BTC UP. SMT's own call on BTC stays hidden until mine is on chain, so it can't steer me.
+
+5
+00:00:34,133 --> 00:00:41,600
+The app builds one devnet transaction and hands it to my wallet through Mobile Wallet Adapter.
+
+6
+00:00:41,600 --> 00:00:48,667
+Solflare shows the transaction and I approve it. The app never sees a private key.
+
+7
+00:00:48,667 --> 00:00:58,800
+It's on chain. Now SMT shows its call on BTC: sitting out at 24% conviction, leaning DOWN, with every advisor's vote and reason.
+
+8
+00:00:58,800 --> 00:01:07,800
+SMT is scored only when it really calls LONG or SHORT. Sitting out isn't a prediction, so it isn't graded.
+
+9
+00:01:07,800 --> 00:01:19,867
+One transaction, two memos. The first holds my call and SMT's, signed by my wallet. The second points to a shared registry address that every Clock In names.
+
+10
+00:01:19,867 --> 00:01:32,333
+My history is read back from devnet, so a new phone loses nothing. Four hours later each call is graded on the market price at or after that moment.
+
+11
+00:01:32,333 --> 00:01:41,700
+My first week: 0 right of 3. The market won. SMT sat out all three, so it has no score yet.
+
+12
+00:01:41,700 --> 00:01:52,600
+The leaderboard reads every player's calls straight from that registry address. No server of mine, no database. Right now it's just me: it's launch week.
+
+13
+00:01:52,600 --> 00:01:59,300
+Anyone can check it on Solana Explorer: the registry's history lists every Clock In.
+
+14
+00:01:59,300 --> 00:02:13,667
+The SMT tab shows what the trading agent thinks of all 8 coins right now, and opens SMT World, the full web app. With a wallet, it unlocks after my call for the day.
+
+15
+00:02:13,667 --> 00:02:27,667
+SKR, the Solana Mobile token, is a ninth coin to call. SMT doesn't trade it, so that one is just me against the market. The app reads my SKR balance on mainnet, read-only.
+
+16
+00:02:27,667 --> 00:02:33,200
+Any call can be shared as a card, with its transaction.
+
+17
+00:02:33,200 --> 00:02:42,200
+A home-screen widget keeps the streak in view, and a 9:00 reminder fires only if I haven't clocked in yet.
+
+18
+00:02:42,200 --> 00:02:51,200
+Built October 7 to 12, 2026. Try it on an Android phone: the APK is on the GitHub release.

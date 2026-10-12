@@ -50,6 +50,9 @@
   .title-row { display: flex; align-items: center; gap: 64px; margin-top: auto; margin-bottom: auto; }
   .tag { display: inline-block; font-size: 24px; font-weight: 700; padding: 10px 20px; border-radius: 999px; border: 2px solid var(--gold); color: var(--gold); margin-right: 14px; margin-top: 18px; }
   .links { font-family: 'JetBrains Mono', monospace; font-size: 28px; line-height: 1.8; color: var(--gold-soft); margin-top: 36px; }
+  .phones4 { display: flex; gap: 40px; margin-top: 28px; }
+  .shot-label { font-size: 22px; color: var(--muted); margin-top: 14px; }
+  .mini { font-size: 24px; line-height: 1.4; color: var(--ink); max-width: 420px; }
 </style>
 </head>
 <body>
@@ -61,8 +64,8 @@
     <div>
       <div class="kicker">Solana Mobile · Clock In · October 2026</div>
       <h1>SMT World:<br><span class="gold">Clock In</span></h1>
-      <p class="lead">Call the market once a day. See what the AI called. Solana keeps the score for both of you.</p>
-      <div><span class="tag">Android APK</span><span class="tag">Mobile Wallet Adapter</span><span class="tag">Solana devnet</span></div>
+      <p class="lead">Call the market once a day against an AI trading agent. Solana keeps the score for both of you.</p>
+      <div><span class="tag">Android APK</span><span class="tag">Mobile Wallet Adapter</span><span class="tag">Solana devnet</span><span class="tag">SKR</span></div>
     </div>
   </div>
   <div class="muted" style="font-size:26px">Jannet Ekka · Smart Money Trading</div>
@@ -83,37 +86,37 @@
 <section class="slide">
   <div class="kicker">How a Clock In works</div>
   <h2 style="font-size:56px">One call a day. Three taps.</h2>
-  <div class="phones" style="margin-top:28px">
+  <div class="phones4">
     <div class="step">
-      <div class="phone" style="width:300px"><img src="img/clock_in_s.png" alt="Clock In screen"></div>
-      <div class="n">1</div><p>Pick one of 8 coins. Call it UP or DOWN for the next 4 hours.</p>
+      <div class="phone" style="width:300px"><img src="img/v2_clock_in.png" alt="Picking BTC UP"></div>
+      <div class="n">1</div><p>Pick one of 8 coins, or SKR. Call it UP or DOWN for the next 4 hours.</p>
     </div>
     <div class="step">
-      <div class="phone" style="width:300px"><img src="img/in_wallet_s.png" alt="Waiting for the wallet"></div>
+      <div class="phone" style="width:300px"><img src="img/v2_solflare.png" alt="Solflare approval on my phone"></div>
       <div class="n">2</div><p>Your wallet (Phantom or Solflare) signs one devnet transaction through Mobile Wallet Adapter.</p>
     </div>
     <div class="step">
-      <div class="phone" style="width:300px"><img src="img/reveal_s.png" alt="SMT's call revealed"></div>
+      <div class="phone" style="width:300px"><img src="img/v2_reveal.png" alt="SMT's call revealed"></div>
       <div class="n">3</div><p>Only then does SMT reveal its own call on that coin, with its reasons.</p>
     </div>
     <div class="step">
-      <div class="phone" style="width:300px"><img src="img/my_calls_s.png" alt="My calls and score"></div>
-      <div class="n">4</div><p>4 hours later both calls are graded against the real price. You get a notification.</p>
+      <div class="phone" style="width:300px"><img src="img/v2_my_calls.png" alt="My calls and score"></div>
+      <div class="n">4</div><p>4 hours later the call is graded on the market price. You get a notification.</p>
     </div>
   </div>
-  <div class="caption">Screens rendered from the app's code with sample data.</div>
+  <div class="caption">My real BTC call of 12 Oct, rendered from the app's v0.3.0 code with that moment's data. Step 2 is my phone.</div>
 </section>
 
 <!-- 4. On chain -->
 <section class="slide">
   <div class="kicker">The Solana part</div>
   <h2>Every Clock In is a memo signed by your wallet.</h2>
-  <div class="memo">SMT Clock In v1 | BTC | me <b>UP</b> @ 85482.01 binance | SMT <i>DOWN</i> 36% WAIT | grade +4h</div>
+  <div class="memo">SMT Clock In v1 | BTC | me <b>UP</b> @ 83411.78 binance | SMT <i>DOWN</i> 24% WAIT | grade +4h</div>
   <div class="grid2">
-    <div class="card"><h3>Both calls, one timestamp</h3><p>Your call and SMT's call land in the same transaction, so neither can be written after the market moves.</p></div>
+    <div class="card"><h3>Both calls, one timestamp</h3><p>Your call and SMT's land in the same transaction, so neither can be written after the market moves.</p></div>
     <div class="card"><h3>Checkable without the app</h3><p>The memo is plain text with the entry price and its source. Anyone can re-grade a call from Solana Explorer and public price data.</p></div>
-    <div class="card"><h3>History lives on chain</h3><p>Streak and history are rebuilt from the wallet's transactions (getSignaturesForAddress), so a reinstall or a new phone loses nothing.</p></div>
-    <div class="card"><h3>Free to play</h3><p>Devnet only. A Clock In costs about 0.000005 devnet SOL from the public faucet. No real money moves.</p></div>
+    <div class="card"><h3>History and leaderboard from the chain</h3><p>A second memo names one shared registry address. Your history and everyone's leaderboard are read back from Solana, so there's no server to trust.</p></div>
+    <div class="card"><h3>Free to play</h3><p>Devnet only, paid with free SOL from the public faucet. No real money moves.</p></div>
   </div>
 </section>
 
@@ -126,57 +129,95 @@
       <ul class="points">
         <li>SMT is a multi-persona trading agent: order flow, whales &amp; on-chain, sentiment, technical, regime and catalyst each vote.</li>
         <li>A judge turns the votes into a call and explains it in plain words, including why it's sitting a coin out.</li>
-        <li>When SMT sits out, the app grades its lean and says so. If the feed is more than 6 hours old, SMT isn't scored.</li>
+        <li>SMT is scored only when it calls LONG or SHORT. When it sits out, the app shows its lean and doesn't grade it.</li>
       </ul>
     </div>
-    <div class="phone" style="width:420px"><img src="img/reveal.png" alt="SMT's reasons"></div>
+    <div class="phone" style="width:420px"><img src="img/v2_reveal_votes.png" alt="SMT's reasons and votes"></div>
   </div>
-  <div class="caption">Screen rendered from the app's code with sample data. SMT's reasons are from its public feed.</div>
+  <div class="caption">SMT's reasons on BTC at 11:35 UTC, 12 Oct, from its public feed.</div>
 </section>
 
 <!-- 6. Stickiness -->
 <section class="slide">
   <div class="row">
-    <div class="phone" style="width:420px"><img src="img/my_calls.png" alt="You vs SMT score"></div>
+    <div class="phone" style="width:420px"><img src="img/v2_my_calls.png" alt="You vs SMT score"></div>
     <div class="col">
       <div class="kicker">Why people come back</div>
       <h2>A reason to open it every day.</h2>
       <div class="grid2" style="grid-template-columns:1fr">
         <div class="card"><h3>A streak kept on Solana</h3><p>Miss a day and it resets. It survives a lost phone.</p></div>
-        <div class="card"><h3>A result 4 hours later</h3><p>A notification when your call and SMT's are graded.</p></div>
+        <div class="card"><h3>A result 4 hours later</h3><p>A notification when your call is graded, and what SMT did.</p></div>
         <div class="card"><h3>You vs the AI</h3><p>A running score. Beating a trading agent is a better hook than a price alert.</p></div>
-        <div class="card"><h3>A 9:00 nudge</h3><p>Only if you haven't clocked in yet. One switch turns it off.</p></div>
       </div>
+      <img src="img/v2_reminder.png" alt="The 9:00 reminder on my phone" style="width:620px; border-radius:22px; margin-top:26px">
+      <div class="shot-label">The 9:00 reminder, on my phone. It fires only if you haven't clocked in.</div>
     </div>
   </div>
 </section>
 
-<!-- 7. Built during the hackathon -->
+<!-- 7. Everyone vs SMT -->
+<section class="slide">
+  <div class="row">
+    <div class="col">
+      <div class="kicker">Everyone vs SMT</div>
+      <h2>A leaderboard with no server.</h2>
+      <ul class="points">
+        <li>Players reads every Clock In from the shared registry address and ranks players after 3 graded calls.</li>
+        <li>SMT gets its own row. Its call for a coin and hour is the one most players recorded, so one player can't rewrite it.</li>
+        <li>The SMT tab shows the agent's view of all 8 coins, and unlocks after your call for the day.</li>
+      </ul>
+    </div>
+    <div class="phone" style="width:340px"><img src="img/v2_players.png" alt="Players tab"></div>
+    <div class="phone" style="width:340px"><img src="img/v2_smt.png" alt="SMT tab"></div>
+  </div>
+  <div class="caption">Rendered from the app's v0.3.0 code with live devnet and SMT data, 12 Oct.</div>
+</section>
+
+<!-- 8. Made for a phone -->
+<section class="slide">
+  <div class="kicker">Made for a phone</div>
+  <h2 style="font-size:56px">SKR, a widget, and a card to share.</h2>
+  <div class="row" style="margin-top:36px; gap:56px">
+    <div>
+      <div class="phone" style="width:330px"><img src="img/v2_skr.png" alt="SKR as a ninth coin"></div>
+      <p class="mini" style="margin-top:20px">SKR is a ninth coin to call. SMT doesn't trade it, so it's you vs the market. The app reads your SKR balance on mainnet, read-only.</p>
+    </div>
+    <div>
+      <img src="img/v2_share.png" alt="Share card" style="width:520px; border-radius:22px">
+      <p class="mini" style="margin-top:20px">Any call can be shared as a card with its transaction.</p>
+    </div>
+    <div>
+      <img src="img/v2_widget.png" alt="Home-screen widget" style="width:520px; border-radius:22px">
+      <p class="mini" style="margin-top:20px">A home-screen widget keeps the streak in view. It reads the phone's cache, so it costs no network.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 9. Built during the hackathon -->
 <section class="slide">
   <div class="kicker">Built during the hackathon</div>
-  <h2>A native Android app, written in October 2026.</h2>
+  <h2>A native Android app, written October 7 to 12, 2026.</h2>
   <div class="row" style="margin-top:40px">
     <div class="col">
       <ul class="points" style="margin-top:0">
-        <li>Kotlin + Jetpack Compose. Three native tabs; SMT World's web app is one of them.</li>
-        <li>Mobile Wallet Adapter for connect and signAndSendTransactions.</li>
-        <li>The memo transaction is built by hand and matches solders (Rust solana-sdk) byte for byte. Devnet accepts it.</li>
+        <li>SMT, the trading agent, and SMT World, its web app, existed before. This Android app is new.</li>
+        <li>Kotlin + Jetpack Compose. Four native tabs: Clock In, My calls, Players, SMT.</li>
+        <li>Mobile Wallet Adapter for connect and signAndSendTransactions. The memo transaction is built by hand and matches solders byte for byte.</li>
         <li>No Google Play Services. The same APK runs on Fire TV, where wallet features hide themselves.</li>
-        <li>Reused, already public: SMT World's web app and SMT's decisions feed. The trading agent itself isn't in the repo.</li>
       </ul>
     </div>
-    <img class="tv" src="img/fire_tv.png" alt="The app on a TV with no wallet installed" style="width:760px">
+    <img class="tv" src="img/v2_fire_tv.png" alt="The app on a TV with no wallet installed" style="width:760px">
   </div>
 </section>
 
-<!-- 8. Next -->
+<!-- 10. Next -->
 <section class="slide">
   <div class="kicker">What's next</div>
-  <h2>From a daily call to a public scoreboard.</h2>
+  <h2>From a daily call to a track record nobody can edit.</h2>
   <div class="grid3">
-    <div class="card"><h3>Leaderboard with no server</h3><p>The memos are public, so anyone can rank players, and SMT, straight from the chain.</p></div>
+    <div class="card"><h3>SMT's public record</h3><p>Every real call SMT makes lands on chain with a timestamp. A season of them is a track record its operator can't rewrite.</p></div>
     <div class="card"><h3>Mainnet and the dApp Store</h3><p>Publish on the Solana dApp Store and move the record to mainnet once the game is tuned.</p></div>
-    <div class="card"><h3>The full SMT World</h3><p>The same app grows into SMT World on phones and TVs, where users follow and copy the agent.</p></div>
+    <div class="card"><h3>The full SMT World</h3><p>The same app grows into SMT World on phones and TVs, where users follow the agent.</p></div>
   </div>
   <div style="display:flex; gap:56px; align-items:center; margin-top:56px">
     <img src="img/qr_release.png" width="260" height="260" alt="QR code for the APK release" style="border-radius:16px">

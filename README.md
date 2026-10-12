@@ -2,7 +2,7 @@
 
 An Android app for [Solana Mobile's Clock In hackathon](https://solanamobile.com/blog/clock-in-the-solana-mobile-hackathon). Once a day you call one coin UP or DOWN for the next 4 hours. Your call and the AI's call go on Solana devnet in one transaction, and both get graded against the real price 4 hours later.
 
-The AI is [Smart Money Trading (SMT)](https://smt-weex-trading-bot.jannet-ekka.workers.dev/), a multi-persona crypto trading agent. Six personas (order flow, whales & on-chain, sentiment, technical, regime, catalyst) vote, and a judge turns the votes into a call with a written reason. You make your call first; SMT's call and its reasons are revealed after yours is on chain.
+The app has four native tabs: **Clock In**, **My calls**, **Players** (everyone vs SMT) and **SMT** (SMT's calls and reasons). The AI is [Smart Money Trading (SMT)](https://smt-weex-trading-bot.jannet-ekka.workers.dev/), a multi-persona crypto trading agent. Six personas (order flow, whales & on-chain, sentiment, technical, regime, catalyst) vote, and a judge turns the votes into a call with a written reason. You make your call first; SMT's call and its reasons are revealed after yours is on chain.
 
 **Download:** the APK is on the [Releases page](../../releases). Install steps are below.
 
@@ -27,7 +27,7 @@ Your streak counts the days in a row you've clocked in. It's rebuilt from the ch
 
 Each Clock In carries a second, tiny memo that names one fixed public address, `2Hbn8xzmfySdmSYfwaCc5EtieZan29SGFaNNj2f1ZLVg` (the SHA-256 of "SMT Clock In registry v1", so nobody holds its key). The **Players** tab reads every Clock In from every player straight from that address with `getSignaturesForAddress`, looks up who paid for each one, grades them, and ranks players against each other and against SMT. There's no server, and no call can be changed once it's on chain. A player is ranked after 3 graded calls.
 
-Anyone can write a memo to that address, so the board trusts nothing a memo claims. Every call is graded on prices fetched from Binance or CoinGecko at the call's minute and 4 hours later. A memo whose stated price is more than 2% from the market's is left off the board. SMT's lean is written by players too, so SMT's row takes, for each coin and hour, the lean the most players recorded, and skips the hour on a tie.
+Anyone can write a memo to that address, so the board trusts nothing a memo claims. Every call is graded on prices fetched from Binance or CoinGecko: the first price at or after the call, and the first at or after the 4-hour mark. A memo whose stated price is more than 2% from the market's is left off the board. SMT's call is written by players too, so SMT's row takes, for each coin and hour, the call the most players recorded, and skips the hour on a tie.
 
 The tag uses Memo v1, which doesn't require its accounts to sign, because Memo v2 rejects an account that didn't sign. And because an instruction uses the address, it survives wallets that rebuild the transaction: Solflare adds priority-fee instructions.
 
@@ -64,7 +64,7 @@ Devnet only. No real money moves at any point.
 Everything in this repository was written for Clock In, in October 2026: the Android app, the memo transaction, the on-chain history, streak and leaderboard, grading, notifications, the widget, the share card, SKR and the Fire TV support.
 
 Two things it uses already existed and are public:
-- **SMT World's web app**, shown as is in the **SMT World** tab.
+- **SMT World's web app**, one tap away from the **SMT** tab (it opens in the browser).
 - **SMT's public decisions feed** (`decisions.json` on the same site), which is where the app reads SMT's call and reasons.
 
 The trading agent itself, its parameters and its research are not in this repo.
@@ -94,7 +94,7 @@ GitHub Actions builds and tests every push and attaches the APK to a release for
 ## Limits
 
 - Devnet only.
-- When SMT is sitting out (WAIT), the app grades its **lean**, the conviction-weighted sum of its personas' votes, and labels it as a lean. If the votes cancel out, or SMT's feed is more than 6 hours old, SMT isn't scored for that call.
+- SMT is scored only when it makes a **real call** (LONG or SHORT). Most hours its committee sits out (WAIT); the app then shows which way it leans (the conviction-weighted sum of its advisors' votes) and why, but doesn't score it. If SMT's feed is more than 6 hours old, it isn't scored either.
 - History reads up to the wallet's latest 1,000 transactions, and keeps older cached calls.
 - Clock Ins made before v0.2.0 have no leaderboard tag, so they show in My calls but not on the Players tab.
 - Grades use Binance's 1-minute candle at the 4-hour mark, or CoinGecko's nearest point when Binance can't be reached. The source is stored with each grade.

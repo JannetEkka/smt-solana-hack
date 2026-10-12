@@ -10,6 +10,7 @@ import io.github.jannetekka.smtworld.clockin.Streak
 import io.github.jannetekka.smtworld.data.Store
 import io.github.jannetekka.smtworld.smt.SmtFeed
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +18,8 @@ import java.util.TimeZone
 
 class ClockInLogicTest {
     private val call = ClockInCall("BTC", Dir.UP, 62345.12, "binance", Lean.DOWN, 36, "WAIT")
+    /** The same call when SMT's committee actually called it. */
+    private val realCall = call.copy(smtAction = "SHORT")
 
     @Test fun memoIsReadableAndRoundTrips() {
         val memo = call.toMemo()
@@ -51,7 +54,9 @@ class ClockInLogicTest {
         val oc = OnChainCall("sig", 1791354900L, call)
         val ShareCard = io.github.jannetekka.smtworld.share.ShareCard
         assertTrue(ShareCard.caption(oc, null).startsWith("I called BTC UP for the next 4h"))
-        assertTrue(ShareCard.caption(oc, Grading.grade(call, 100.0, 101.0, "binance")).startsWith("I called BTC UP and beat SMT"))
+        assertTrue(ShareCard.caption(oc, Grading.grade(realCall, 100.0, 101.0, "binance")).startsWith("I called BTC UP and beat SMT"))
+        // SMT sat out: you can't "beat" a call it never made.
+        assertTrue(ShareCard.caption(oc, Grading.grade(call, 100.0, 101.0, "binance")).startsWith("I called BTC UP and got it right"))
         assertTrue(ShareCard.caption(oc, Grading.grade(call, 100.0, 99.0, "binance")).contains("-1.00%"))
     }
 
@@ -70,27 +75,54 @@ class ClockInLogicTest {
     }
 
     @Test fun gradingUsesDirection() {
-        val g = Grading.grade(call, 100.0, 101.0, "binance")
+        val g = Grading.grade(realCall, 100.0, 101.0, "binance")
         assertEquals(Outcome.RIGHT, g.you)
         assertEquals(Outcome.WRONG, g.smt)
         assertEquals(1.0, g.movePct, 1e-9)
-        val down = Grading.grade(call, 100.0, 99.0, "binance")
+        val down = Grading.grade(realCall, 100.0, 99.0, "binance")
         assertEquals(Outcome.WRONG, down.you); assertEquals(Outcome.RIGHT, down.smt)
-        val flat = Grading.grade(call, 100.0, 100.0, "binance")
+        val flat = Grading.grade(realCall, 100.0, 100.0, "binance")
         assertEquals(Outcome.NOT_SCORED, flat.you); assertEquals(Outcome.NOT_SCORED, flat.smt)
-        val noLean = Grading.grade(call.copy(smtLean = Lean.FLAT), 100.0, 105.0, "binance")
+        val noLean = Grading.grade(realCall.copy(smtLean = Lean.FLAT), 100.0, 105.0, "binance")
         assertEquals(Outcome.NOT_SCORED, noLean.smt)
+    }
+
+    @Test fun smtSittingOutIsNeverScored() {
+        // Jannet's real calls (10-07/10-08): every one was SMT sitting out. Only her side is scored.
+        for (action in listOf("WAIT", "BLOCK", "STALE", "NOFEED", "NOCALL")) {
+            val g = Grading.grade(call.copy(smtAction = action), 100.0, 99.0, "binance")
+            assertEquals(action, Outcome.NOT_SCORED, g.smt)
+            assertEquals(Outcome.WRONG, g.you)
+        }
+        assertEquals(Outcome.RIGHT, Grading.grade(call.copy(smtAction = "LONG", smtLean = Lean.UP), 100.0, 101.0, "b").smt)
+        assertTrue(Grading.isRealCall("SHORT")); assertFalse(Grading.isRealCall("WAIT"))
     }
 
     @Test fun scoresCountOnlyScoredCalls() {
         val gs = listOf(
-            Grading.grade(call, 100.0, 101.0, "b"), Grading.grade(call, 100.0, 99.0, "b"),
-            Grading.grade(call.copy(smtLean = Lean.FLAT), 100.0, 101.0, "b"),
+            Grading.grade(realCall, 100.0, 101.0, "b"), Grading.grade(realCall, 100.0, 99.0, "b"),
+            Grading.grade(call, 100.0, 99.0, "b"),            // SMT sat out: only "you" counts
         )
-        assertEquals(Grading.Score(2, 3), Grading.scoreYou(gs))
+        assertEquals(Grading.Score(1, 3), Grading.scoreYou(gs))
         assertEquals(Grading.Score(1, 2), Grading.scoreSmt(gs))
-        assertEquals(67, Grading.scoreYou(gs).pct)
+        assertEquals(33, Grading.scoreYou(gs).pct)
         assertNull(Grading.scoreYou(emptyList()).pct)
+    }
+
+    @Test fun pricesAreTheFirstAtOrAfterTheMoment() {
+        val P = io.github.jannetekka.smtworld.market.Prices
+        assertEquals(1791354900L, P.ceilMinute(1791354900L))              // on the minute stays
+        assertEquals(1791354960L, P.ceilMinute(1791354901L))              // otherwise the next minute
+        val pts = listOf(1000L to 1.0, 1290L to 2.0, 1300L to 3.0, 1000L + P.CG_WINDOW_S + 1 to 4.0)
+        assertEquals(2.0, P.firstAtOrAfter(pts, 1200L)!!, 0.0)            // never an earlier point
+        assertNull(P.firstAtOrAfter(pts, 1301L + P.CG_WINDOW_S))           // nothing inside the window
+        // Hourly data beyond a day: an hour-aligned point 55 min after the moment still counts.
+        assertEquals(9.0, P.firstAtOrAfter(listOf(3600L to 9.0), 300L)!!, 0.0)
+    }
+
+    @Test fun blockHasNoLean() {
+        val text = """{"BTC":{"action":"BLOCK","conf":0.9,"votes":{"a":["LONG",0.9,""]}}}"""
+        assertEquals(Lean.FLAT, SmtFeed.parse(text).getValue("BTC").lean)
     }
 
     @Test fun streakCountsLocalDays() {

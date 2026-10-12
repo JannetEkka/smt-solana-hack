@@ -24,7 +24,7 @@ object Leaderboard {
      *
      * Players write SMT's lean into their own memos, so a single player could misreport it. SMT's
      * row therefore takes, for each (coin, hour), the lean most distinct players recorded, and
-     * counts that call once.
+     * counts that call once (scored only if it was a real LONG or SHORT).
      */
     fun rows(entries: List<Entry>, grades: Map<String, Grade>): List<Row> {
         val valid = entries.filter { grades[it.call.signature]?.memoMismatch != true }
@@ -35,12 +35,13 @@ object Leaderboard {
         val smtCalls = valid.mapNotNull { e -> grades[e.call.signature]?.let { e to it } }
             .groupBy { (e, _) -> e.call.call.coin to e.call.blockTime / 3600 }
             .mapNotNull { (_, inBucket) ->
-                // the lean the most distinct players recorded for this coin and hour
-                val byLean = inBucket.groupBy { it.first.call.call.smtLean }
+                // SMT's call (lean + action) the most distinct players recorded for this coin and hour.
+                // The action is part of the key: one player writing LONG where others wrote WAIT can't score SMT.
+                val byCall = inBucket.groupBy { it.first.call.call.let { c -> c.smtLean to c.smtAction } }
                     .mapValues { (_, xs) -> xs.map { it.first.player }.distinct().size }
-                val lean = byLean.maxByOrNull { it.value }?.key ?: return@mapNotNull null
-                if (byLean.values.count { it == byLean.getValue(lean) } > 1) return@mapNotNull null   // a tie: no consensus
-                inBucket.first { it.first.call.call.smtLean == lean }.second.smt.takeIf { it != Outcome.NOT_SCORED }
+                val call = byCall.maxByOrNull { it.value }?.key ?: return@mapNotNull null
+                if (byCall.values.count { it == byCall.getValue(call) } > 1) return@mapNotNull null   // a tie: no consensus
+                inBucket.first { it.first.call.call.let { c -> c.smtLean to c.smtAction } == call }.second.smt.takeIf { it != Outcome.NOT_SCORED }
             }
         val smt = Row(SMT, smtCalls.size, smtCalls.size, smtCalls.count { it == Outcome.RIGHT },
             valid.maxOfOrNull { it.call.blockTime } ?: 0)

@@ -13,8 +13,9 @@ import org.junit.Test
 
 class LeaderboardTest {
     private var n = 0
-    private fun entry(player: String, coin: String, you: Dir, t: Long, lean: Lean = Lean.DOWN) =
-        Leaderboard.Entry(OnChainCall("sig${n++}", t, ClockInCall(coin, you, 100.0, "binance", lean, 30, "WAIT")), player)
+    private fun entry(player: String, coin: String, you: Dir, t: Long, lean: Lean = Lean.DOWN,
+                      action: String = when (lean) { Lean.UP -> "LONG"; Lean.DOWN -> "SHORT"; Lean.FLAT -> "WAIT" }) =
+        Leaderboard.Entry(OnChainCall("sig${n++}", t, ClockInCall(coin, you, 100.0, "binance", lean, 30, action)), player)
 
     @Test fun ranksByHitRateOnlyAfterEnoughGradedCalls() {
         val alice = (0 until 4).map { entry("alice", "BTC", Dir.UP, 10_000L * it) }      // 4 calls, price goes up: 4/4
@@ -53,6 +54,14 @@ class LeaderboardTest {
         val tie = listOf(entry("a", "ETH", Dir.UP, 7200, Lean.DOWN), entry("liar", "ETH", Dir.UP, 7210, Lean.UP))
         val tg = tie.associate { it.call.signature to Grading.grade(it.call.call, 100.0, 99.0, "binance") }
         assertEquals(0, Leaderboard.rows(tie, tg).first { it.player == Leaderboard.SMT }.graded)
+    }
+
+    @Test fun oneLiarCantTurnSmtSittingOutIntoACall() {
+        // Two players record SMT sitting out on BTC (leaning DOWN); one writes the same lean as a SHORT.
+        val es = listOf(entry("a", "BTC", Dir.UP, 3600, Lean.DOWN, "WAIT"), entry("b", "BTC", Dir.UP, 3610, Lean.DOWN, "WAIT"),
+            entry("liar", "BTC", Dir.UP, 3620, Lean.DOWN, "SHORT"))
+        val grades = es.associate { it.call.signature to Grading.grade(it.call.call, 100.0, 99.0, "binance") }
+        assertEquals(0, Leaderboard.rows(es, grades).first { it.player == Leaderboard.SMT }.graded)
     }
 
     @Test fun aMemoWithAFakePriceIsOffTheBoard() {

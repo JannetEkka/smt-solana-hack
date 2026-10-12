@@ -40,7 +40,7 @@ fun PlayersScreen(s: UiState, vm: UiActions, openUrl: (String) -> Unit) {
                 Note("Every Clock In, from every player, also names one public address on Solana. This list is read " +
                     "straight from that address, with no server, and no call can be changed once it's on chain. Calls are " +
                     "graded on Binance or CoinGecko prices, never on what a memo says. A player is ranked after " +
-                    "${Leaderboard.MIN_GRADED} graded calls; SMT's row uses the lean most players recorded for each coin and hour.")
+                    "${Leaderboard.MIN_GRADED} graded calls. SMT counts only its real calls (LONG or SHORT), as most players recorded them.")
                 // Stacked, not side by side: with large system fonts a row squeezed "Refresh" into one letter per line.
                 OutlinedButton(onClick = { vm.refreshBoard() }, enabled = !s.boardLoading, modifier = Modifier.fillMaxWidth().focusRing()) {
                     Text(if (s.boardLoading) "Loading…" else "Refresh", maxLines = 1)
@@ -72,8 +72,8 @@ private fun PlayerRow(rank: Int, r: Leaderboard.Row, me: String?) = SectionCard 
             )
             Text(
                 when {
-                    isSmt && r.graded == 0 -> "No graded calls yet: the first grades land 4 hours after a Clock In"
-                    isSmt -> "${r.right} right of ${r.graded} calls it leaned on"
+                    isSmt && r.graded == 0 -> "No real calls graded yet: SMT counts only when it calls LONG or SHORT"
+                    isSmt -> "${r.right} right of ${plural(r.graded, "real call")}"
                     r.ranked -> "${r.right} right of ${r.graded} graded · ${plural(r.calls, "call")}"
                     r.graded == 0 -> "${plural(r.calls, "call")} · first grade 4 hours after a call"
                     else -> "${plural(r.calls, "call")} · ${r.graded} graded · ranked from ${Leaderboard.MIN_GRADED}"

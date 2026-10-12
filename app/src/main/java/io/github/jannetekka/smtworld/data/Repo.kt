@@ -139,7 +139,7 @@ class Repo(context: Context) {
         val own = c.call.priceSource
         val other = if (own == Prices.BINANCE) Prices.COINGECKO else Prices.BINANCE
         for (src in listOf(own, other)) {
-            val exit = runCatching { Prices.at(coin, c.dueAt, src, notBefore = true) }.getOrNull() ?: continue
+            val exit = runCatching { Prices.at(coin, c.dueAt, src) }.getOrNull() ?: continue
             val entry = runCatching { Prices.at(coin, c.blockTime, src) }.getOrNull() ?: continue
             return Grading.graded(c.call, entry.px, exit.px, src)
         }

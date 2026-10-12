@@ -37,13 +37,17 @@ object Grading {
             (dir == Dir.UP) == up -> Outcome.RIGHT
             else -> Outcome.WRONG
         }
-        val smt = when (call.smtLean) {
+        // SMT is scored only on a real call (LONG or SHORT). When its committee sits out (WAIT),
+        // its lean is shown but not scored: sitting out is not a prediction (Jannet, 10-12).
+        val smt = if (!isRealCall(call.smtAction)) Outcome.NOT_SCORED else when (call.smtLean) {
             Lean.UP -> score(Dir.UP)
             Lean.DOWN -> score(Dir.DOWN)
             Lean.FLAT -> Outcome.NOT_SCORED
         }
         return Grade(entryPx, exitPx, source, score(call.you), smt)
     }
+
+    fun isRealCall(smtAction: String) = smtAction == "LONG" || smtAction == "SHORT"
 
     data class Score(val right: Int, val scored: Int) {
         val pct: Int? get() = if (scored == 0) null else Math.round(right * 100.0 / scored).toInt()

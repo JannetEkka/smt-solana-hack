@@ -27,7 +27,7 @@ import io.github.jannetekka.smtworld.clockin.OnChainCall
 
 enum class AppTab(val label: String, val glyph: String, val title: String) {
     CLOCK_IN("Clock In", "⏱", "SMT Clock In"), CALLS("My calls", "📜", "My calls"),
-    PLAYERS("Players", "🏆", "Everyone vs SMT"), WORLD("SMT World", "🌍", "SMT World")
+    PLAYERS("Players", "🏆", "Everyone vs SMT"), SMT("SMT", "🧠", "SMT's calls")
 }
 
 @Composable
@@ -45,7 +45,7 @@ fun AppRoot(vm: AppViewModel, sender: ActivityResultSender, openUrl: (String) ->
             }, openUrl = openUrl, onShare = onShare)
             AppTab.CALLS -> HistoryScreen(s, vm, openUrl, onShare)
             AppTab.PLAYERS -> PlayersScreen(s, vm, openUrl)
-            AppTab.WORLD -> WorldScreen(openUrl)
+            AppTab.SMT -> SmtScreen(s, openUrl)
         }
     }
 }

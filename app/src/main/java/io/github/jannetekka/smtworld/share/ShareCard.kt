@@ -76,13 +76,15 @@ object ShareCard {
         if (g != null) {
             cv.drawText(Format.pct(g.movePct), 120f, 730f, paint(if (g.movePct >= 0) UP else DOWN, 80f, true))
             cv.drawText("Me: " + mark(g.you), 120f, 810f, paint(if (g.you == Outcome.RIGHT) UP else MUTED, 44f, true))
-            cv.drawText("SMT: " + mark(g.smt), 560f, 810f, paint(if (g.smt == Outcome.RIGHT) UP else MUTED, 44f, true))
+            val smtText = if (g.smt == Outcome.NOT_SCORED && !io.github.jannetekka.smtworld.clockin.Grading.isRealCall(c.smtAction)) "SMT: sat out" else "SMT: " + mark(g.smt)
+            cv.drawText(smtText, 560f, 810f, paint(if (g.smt == Outcome.RIGHT) UP else MUTED, 44f, true))
         } else {
             cv.drawText("Graded at ${Format.time(oc.dueAt)}", 120f, 730f, paint(INK, 52f, true))
             val smtLine = when {
                 c.smtAction == "NOCALL" -> "SMT doesn't call ${c.coin}"
                 c.smtLean == Lean.FLAT -> "SMT has no lean on it"
-                else -> "SMT leans " + (if (c.smtLean == Lean.UP) "▲ UP" else "▼ DOWN") + " (${c.smtConvictionPct}%)"
+                io.github.jannetekka.smtworld.clockin.Grading.isRealCall(c.smtAction) -> "SMT calls " + (if (c.smtLean == Lean.UP) "▲ LONG" else "▼ SHORT") + " (${c.smtConvictionPct}%)"
+                else -> "SMT sits out, leaning " + (if (c.smtLean == Lean.UP) "▲ UP" else "▼ DOWN")
             }
             cv.drawText(smtLine, 120f, 810f, paint(MUTED, 44f))
         }
