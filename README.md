@@ -57,6 +57,8 @@ Today an AI agent's track record is whatever its operator's logs say. Here each 
 4. Get free devnet SOL at [faucet.solana.com](https://faucet.solana.com). A Clock In costs about 0.000005 SOL.
 5. Open **SMT World** → **Clock In** → **Connect wallet**.
 
+If the wallet opens and bounces straight back, open Solflare or Phantom once, unlock it, then come back and tap Clock in again: the wallet has 10 seconds to connect to the app after it opens.
+
 Devnet only. No real money moves at any point.
 
 ## Built during the hackathon
