@@ -85,7 +85,7 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit, onSha
         Text("${c.call.smtConvictionPct}% ${c.call.smtAction.lowercase()}", color = Muted)
     }
     if (g == null) {
-        Note(if (c.dueAt > s.nowSec) "Graded at ${Format.time(c.dueAt)} against the price then (entry ${Format.price(c.call.entryPx)})."
+        Note(if (c.dueAt > s.nowSec) "Grades at ${Format.time(c.dueAt)} on the price then (entry ${Format.price(c.call.entryPx)})."
              else "Waiting for the price at ${Format.time(c.dueAt)}…")
     } else {
         Row {

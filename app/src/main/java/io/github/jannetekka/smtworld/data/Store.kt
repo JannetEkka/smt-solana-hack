@@ -49,6 +49,11 @@ class Store(context: Context) {
 
     fun putGrade(signature: String, g: Grade) { grades = grades + (signature to g) }
 
+    /** Own calls whose "graded" notification has been posted (newest [MAX_NOTIFIED] kept), so each notifies once. */
+    var notified: List<String>
+        get() = p.getString("notified", null)?.let { s -> org.json.JSONArray(s).let { a -> (0 until a.length()).map { a.getString(it) } } } ?: emptyList()
+        set(v) = p.edit().putString("notified", org.json.JSONArray(v.takeLast(MAX_NOTIFIED)).toString()).apply()
+
     /** Every player's Clock Ins, as last read from the registry address. */
     var boardCalls: List<OnChainCall>
         get() = readCalls(p.getString("board_calls", null))
@@ -71,6 +76,7 @@ class Store(context: Context) {
 
     companion object {
         const val MAX_GRADE_TRIES = 4
+        const val MAX_NOTIFIED = 200
         const val GRADES_SCHEMA = 2
 
         fun writeCalls(calls: List<OnChainCall>): String = JSONArray().apply {
