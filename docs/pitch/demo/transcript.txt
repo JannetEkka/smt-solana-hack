@@ -1,14 +1,13 @@
 [00:00] SMT World: Clock In. Call the market once a day against an AI trading agent. Solana keeps the score.
 [00:06] It's a native Android app. The APK comes from the GitHub release, built by GitHub Actions from the public repo.
-[00:15] Once a day I call one coin UP or DOWN for the next 4 hours. Eight coins, with live prices from Binance.
-[00:24] I call BTC UP. SMT's own call on BTC stays hidden until mine is on chain, so it can't steer me.
-[00:34] The app builds one devnet transaction and hands it to my wallet through Mobile Wallet Adapter.
-[00:41] Solflare shows the transaction and I approve it. The app never sees a private key.
-[00:48] It's on chain. Now SMT shows its call on BTC: sitting out at 24% conviction, leaning DOWN, with every advisor's vote and reason.
-[00:58] SMT is scored only when it really calls LONG or SHORT. Sitting out isn't a prediction, so it isn't graded.
+[00:15] Once a day I call one coin UP or DOWN for the next 4 hours. Tonight I call ETH UP. SMT's call on ETH stays hidden until mine is on chain, so it can't steer me.
+[00:30] The app builds one devnet transaction and hands it to Solflare through Mobile Wallet Adapter. I slide to approve. The app never sees a private key.
+[00:41] Solflare signs it and sends it to Solana devnet.
+[00:46] It's on chain. Only now does SMT show its own call on ETH: sitting out at 40% conviction, leaning UP.
+[00:55] Every advisor's vote and reason, in plain words. SMT is scored only when it really calls LONG or SHORT. Sitting out isn't a prediction, so it isn't graded.
 [01:07] One transaction, two memos. The first holds my call and SMT's, signed by my wallet. The second points to a shared registry address that every Clock In names.
 [01:19] My history is read back from devnet, so a new phone loses nothing. Four hours later each call is graded on the market price at or after that moment.
-[01:32] My first week: 0 right of 3. The market won. SMT sat out all three, so it has no score yet.
+[01:31] My first week: 0 right of 4. The market won every time. SMT sat out every one, so it has no score yet.
 [01:41] The leaderboard reads every player's calls straight from that registry address. No server of mine, no database. Right now it's just me: it's launch week.
 [01:52] Anyone can check it on Solana Explorer: the registry's history lists every Clock In.
 [01:59] The SMT tab shows what the trading agent thinks of all 8 coins right now, and opens SMT World, the full web app. With a wallet, it unlocks after my call for the day.
