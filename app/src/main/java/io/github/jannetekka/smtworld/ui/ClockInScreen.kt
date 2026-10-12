@@ -200,6 +200,7 @@ private fun CallCard(s: UiState, vm: UiActions, onWallet: (WalletAction) -> Unit
     }
     (s.send as? SendState.Failed)?.let {
         Note(it.message, Down)
+        it.detail?.takeIf { d -> d != it.message }?.let { d -> Text("Wallet said: $d", color = Muted, style = MaterialTheme.typography.bodySmall) }
         TextButton(onClick = { vm.resetSend() }, modifier = Modifier.focusRing()) { Text("OK") }
     }
 }

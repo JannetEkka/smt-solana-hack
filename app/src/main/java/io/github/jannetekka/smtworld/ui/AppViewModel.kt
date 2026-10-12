@@ -31,6 +31,7 @@ import io.github.jannetekka.smtworld.smt.SmtFeed
 import io.github.jannetekka.smtworld.solana.Base58
 import io.github.jannetekka.smtworld.solana.DevnetRpc
 import io.github.jannetekka.smtworld.solana.MemoTransaction
+import io.github.jannetekka.smtworld.solana.WalletErrors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
@@ -45,7 +46,8 @@ sealed interface SendState {
     data object Preparing : SendState
     data object InWallet : SendState
     data class Done(val signature: String) : SendState
-    data class Failed(val message: String) : SendState
+    /** [detail]: the wallet library's own words, shown small under [message]. */
+    data class Failed(val message: String, val detail: String? = null) : SendState
 }
 
 data class UiState(
@@ -243,7 +245,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                     refresh()
                 }
                 is TransactionResult.NoWalletFound -> _state.update { it.copy(walletApp = false, send = SendState.Idle) }
-                is TransactionResult.Failure -> _state.update { it.copy(send = SendState.Failed(r.message)) }
+                is TransactionResult.Failure -> {
+                    Log.w(Repo.TAG, "[CONNECT] failed: ${r.message}", r.e)
+                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message), WalletErrors.detail(r.message, r.e))) }
+                }
             }
         }
     }
@@ -312,7 +317,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                 is TransactionResult.NoWalletFound -> _state.update { it.copy(walletApp = false, send = SendState.Idle) }
                 is TransactionResult.Failure -> {
                     Log.w(Repo.TAG, "[CLOCKIN] failed: ${r.message}", r.e)
-                    _state.update { it.copy(send = SendState.Failed(friendly(r.message, r.e))) }
+                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message), WalletErrors.detail(r.message, r.e))) }
                 }
             }
         }
@@ -347,8 +352,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         // A wallet starting cold (or asking for its PIN) can miss MWA's 10-second window to open
         // the local connection. Nothing was signed at that stage, so one retry is safe; the
         // wallet is awake by then. Never retried after signing has started (no double send).
-        if (first is TransactionResult.Failure && isAssociationFailure(first.message)) {
-            Log.w(Repo.TAG, "[WALLET] association failed (${first.message}); retrying once")
+        if (first is TransactionResult.Failure && WalletErrors.isAssociationFailure(first.message)) {
+            Log.w(Repo.TAG, "[WALLET] association failed (${first.message}); retrying once in 2 s")
+            // Let the wallet's first screen finish closing, so the retry isn't a second request
+            // landing on a wallet that is still tearing down the first one.
+            delay(2000)
             first = guarded(op)
         }
         if (first is TransactionResult.Failure && first.message.contains("Auth token", ignoreCase = true)) {
@@ -370,19 +378,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
     } catch (e: Exception) {
         Log.w(Repo.TAG, "[WALLET] ${e.javaClass.simpleName}: ${e.message}")
         TransactionResult.Failure("Network error: ${e.message}", e)
-    }
-
-    private fun isAssociationFailure(msg: String) =
-        msg.contains("local association", true) || msg.contains("association intent", true)
-
-    private fun friendly(msg: String, e: Exception): String = when {
-        msg.contains("did not authorize", true) || msg.contains("declined", true) ||
-            msg.contains("interrupted", true) || msg.contains("cancelled", true) -> "Cancelled in the wallet. Nothing was sent."
-        isAssociationFailure(msg) -> "Couldn't reach the wallet app. Open Solflare or Phantom once, then tap Clock in again."
-        msg.contains("Timed out", true) -> "The wallet didn't answer in time. Nothing was sent. Try again."
-        msg.contains("not all transactions were submitted", true) || msg.contains("Not submitted", true) ->
-            "The wallet signed but could not send. Is it on Devnet, with a little devnet SOL? (faucet.solana.com)"
-        else -> "$msg${e.cause?.message?.let { " ($it)" } ?: ""}"
     }
 
     companion object {

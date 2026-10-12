@@ -6,4 +6,6 @@
 4. Get free devnet SOL at faucet.solana.com. 1 SOL pays for about 200,000 Clock Ins.
 5. Open SMT World → Clock In → Connect wallet → pick a coin → UP or DOWN → Clock in on Solana.
 
+If the wallet opens and bounces straight back, open it once and unlock it, then come back and tap Clock in again.
+
 Devnet only: no real money moves. The APK is built from this repo by GitHub Actions and signed with a demo key kept in `signing/` (it protects nothing; a store build would get its own key). `SHA256SUMS.txt` has the checksum.
