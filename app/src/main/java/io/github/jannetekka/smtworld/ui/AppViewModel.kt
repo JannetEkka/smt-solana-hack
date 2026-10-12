@@ -197,7 +197,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
     private suspend fun gradeDue() {
         if (!grading.tryLock()) return
         try {
-            val newly = withContext(Dispatchers.IO) { repo.gradeDue() }
+            val newly = withContext(Dispatchers.IO) {
+                repo.gradeDue().also { Reminders.notifyGraded(getApplication(), repo) }
+            }
             if (newly.isNotEmpty()) _state.update { it.copy(grades = store.grades) }
         } finally {
             grading.unlock()

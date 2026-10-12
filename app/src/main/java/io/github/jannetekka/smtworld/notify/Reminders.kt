@@ -14,19 +14,20 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import io.github.jannetekka.smtworld.MainActivity
 import io.github.jannetekka.smtworld.R
+import io.github.jannetekka.smtworld.clockin.Grade
+import io.github.jannetekka.smtworld.clockin.OnChainCall
 import io.github.jannetekka.smtworld.clockin.Outcome
 import io.github.jannetekka.smtworld.clockin.Streak
 import io.github.jannetekka.smtworld.data.Repo
 import java.util.Calendar
+import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
 /** The daily hook: a morning nudge to clock in, and a ping when a call has been graded. */
@@ -47,22 +48,71 @@ object Reminders {
             ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) &&
             NotificationManagerCompat.from(ctx).areNotificationsEnabled()
 
-    fun scheduleDaily(ctx: Context) {
-        val now = Calendar.getInstance()
-        val next = (now.clone() as Calendar).apply {
-            set(Calendar.HOUR_OF_DAY, REMINDER_HOUR); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0)
+    /** The next [hour]:00 strictly after [nowMs] in [tz]. */
+    fun nextAt(nowMs: Long, hour: Int, tz: TimeZone): Long {
+        val now = Calendar.getInstance(tz).apply { timeInMillis = nowMs }
+        return (now.clone() as Calendar).apply {
+            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             if (!after(now)) add(Calendar.DAY_OF_MONTH, 1)
-        }
-        val req = PeriodicWorkRequestBuilder<DailyReminderWorker>(24, TimeUnit.HOURS)
-            .setInitialDelay(next.timeInMillis - now.timeInMillis, TimeUnit.MILLISECONDS)
+        }.timeInMillis
+    }
+
+    /**
+     * The 9:00 nudge as a one-time job that re-schedules itself for the next 9:00 when it runs
+     * ([replace] = true from the worker; app start keeps a pending one). It used to be a 24-hour
+     * periodic job, and those count each period from the last run, so a run the phone deferred
+     * pushed every later one back: Jannet's came at 09:15, ~09:47, ~09:57, ~11:47 (Oct 9-12).
+     */
+    fun scheduleDaily(ctx: Context, replace: Boolean = false) {
+        val nowMs = System.currentTimeMillis()
+        val next = nextAt(nowMs, REMINDER_HOUR, TimeZone.getDefault())
+        val req = OneTimeWorkRequestBuilder<DailyReminderWorker>()
+            .setInitialDelay(next - nowMs, TimeUnit.MILLISECONDS)
             .build()
-        WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("daily-clock-in", ExistingPeriodicWorkPolicy.KEEP, req)
-        Log.i(Repo.TAG, "[REMINDER] daily nudge scheduled for ${next.time}")
+        val wm = WorkManager.getInstance(ctx)
+        wm.cancelUniqueWork(OLD_DAILY)
+        wm.enqueueUniqueWork(DAILY, if (replace) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP, req)
+        Log.i(Repo.TAG, "[REMINDER] daily nudge scheduled for ${java.util.Date(next)}")
     }
 
     fun cancelDaily(ctx: Context) {
-        WorkManager.getInstance(ctx).cancelUniqueWork("daily-clock-in")
+        WorkManager.getInstance(ctx).cancelUniqueWork(DAILY)
+        WorkManager.getInstance(ctx).cancelUniqueWork(OLD_DAILY)
         Log.i(Repo.TAG, "[REMINDER] daily nudge off")
+    }
+
+    private const val DAILY = "daily-9am"
+    private const val OLD_DAILY = "daily-clock-in"     // the drifting periodic job of 0.1-0.3.2
+    private const val NOTIFY_WINDOW_S = 86_400L
+
+    /** Own calls that are graded, not yet notified, and came due within the last day. */
+    fun toNotify(calls: List<OnChainCall>, grades: Map<String, Grade>, notified: Collection<String>, nowSec: Long): List<OnChainCall> {
+        val done = notified.toSet()
+        return calls.filter { it.signature in grades && it.signature !in done && it.dueAt <= nowSec && nowSec - it.dueAt < NOTIFY_WINDOW_S }
+    }
+
+    /**
+     * One "graded" notification per own call, whoever graded it. The background job and the open
+     * app both grade due calls; until 0.3.3 only the job notified, and only for calls it graded
+     * itself, so a call the app graded first never notified (Jannet's BTC call, 12 Oct 21:05).
+     * The notification id is the transaction's, so the two racing can't post it twice.
+     */
+    fun notifyGraded(ctx: Context, repo: Repo) {
+        val store = repo.store
+        val grades = store.grades
+        val fresh = synchronized(Repo.LOCK) {
+            toNotify(store.calls, grades, store.notified, System.currentTimeMillis() / 1000)
+                .also { if (it.isNotEmpty()) store.notified = store.notified + it.map { c -> c.signature } }
+        }
+        if (!store.remindersOn) return          // marked anyway, so switching reminders on can't replay old grades
+        for (c in fresh) {
+            val g = grades.getValue(c.signature)
+            val you = when (g.you) { Outcome.RIGHT -> "you were right"; Outcome.WRONG -> "you were wrong"; else -> "no move" }
+            val smt = when (g.smt) { Outcome.RIGHT -> "SMT was right"; Outcome.WRONG -> "SMT was wrong"; else -> "SMT sat it out" }
+            postGrade(ctx, c.signature.hashCode(), "${c.call.coin} ${c.call.you.name} call graded",
+                "${"%+.2f".format(g.movePct)}% in ${c.call.horizonHours}h: $you, $smt.")
+            Log.i(Repo.TAG, "[REMINDER] graded ${c.call.coin} ${c.signature.take(8)} notified")
+        }
     }
 
     fun scheduleGrade(ctx: Context, dueAtSec: Long) {
@@ -106,11 +156,14 @@ class DailyReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWor
         if (!repo.store.remindersOn) return Result.success()
         val days = repo.store.calls.map { Streak.localDay(it.blockTime) }.toSet()
         val today = Streak.localDay(System.currentTimeMillis() / 1000)
-        if (today in days) return Result.success()
-        val streak = Streak.current(days, today)
-        val text = if (streak > 0) "Your $streak-day streak ends tonight unless you make today's call."
-                   else "Make today's call before you see SMT's."
-        Reminders.postDaily(applicationContext, "Time to clock in", text)
+        if (today !in days) {
+            val streak = Streak.current(days, today)
+            val text = if (streak > 0) "Your $streak-day streak ends tonight unless you make today's call."
+                       else "Make today's call before you see SMT's."
+            Reminders.postDaily(applicationContext, "Time to clock in", text)
+        }
+        // Last: the next 9:00. REPLACE ends this (already finished) run's record, nothing else.
+        Reminders.scheduleDaily(applicationContext, replace = true)
         return Result.success()
     }
 }
@@ -120,18 +173,11 @@ class GradeWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx,
         val repo = Repo(applicationContext)
         val addr = repo.store.address
         if (addr != null) runCatching { repo.syncHistory(addr) }
-        val graded = repo.gradeDue()
+        repo.gradeDue()
         io.github.jannetekka.smtworld.widget.StreakWidget.refresh(applicationContext)
-        // Grades are always saved; the notification respects the reminders switch.
-        // Only this wallet's own calls notify; other players' calls are graded for the leaderboard.
-        val mine = repo.store.calls.map { it.signature }.toSet()
-        if (repo.store.remindersOn) for ((c, g) in graded.filter { it.first.signature in mine }) {
-            val you = when (g.you) { Outcome.RIGHT -> "you were right"; Outcome.WRONG -> "you were wrong"; else -> "no move" }
-            val smt = when (g.smt) { Outcome.RIGHT -> "SMT was right"; Outcome.WRONG -> "SMT was wrong"; else -> "SMT sat it out" }
-            Reminders.postGrade(applicationContext, c.signature.hashCode(),
-                "${c.call.coin} ${c.call.you.name} call graded",
-                "${"%+.2f".format(g.movePct)}% in ${c.call.horizonHours}h: $you, $smt.")
-        }
+        // Grades are always saved. Only this wallet's own calls notify (other players' are graded
+        // for the leaderboard), once each, whether this job or the open app graded them.
+        Reminders.notifyGraded(applicationContext, repo)
         // Retry a few times for a call that came due in the last day and couldn't be priced yet
         // (an API down for a while); after that the app grades it on its next refresh.
         val now = System.currentTimeMillis() / 1000
