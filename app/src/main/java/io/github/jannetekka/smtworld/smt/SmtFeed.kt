@@ -23,6 +23,7 @@ data class SmtCall(
     val lean: Lean get() = when (action) {
         "LONG" -> Lean.UP
         "SHORT" -> Lean.DOWN
+        "BLOCK" -> Lean.FLAT                // the safety rule refusing the coin: no lean
         else -> {
             val s = votes.sumOf { when (it.dir) { "LONG" -> it.conf; "SHORT" -> -it.conf; else -> 0.0 } }
             when { s > 1e-9 -> Lean.UP; s < -1e-9 -> Lean.DOWN; else -> Lean.FLAT }

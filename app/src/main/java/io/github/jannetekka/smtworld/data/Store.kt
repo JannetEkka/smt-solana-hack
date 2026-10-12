@@ -15,6 +15,14 @@ import org.json.JSONObject
 class Store(context: Context) {
     private val p = context.applicationContext.getSharedPreferences("smt_world", Context.MODE_PRIVATE)
 
+    init {
+        // v2 (0.3.0): SMT scored on real calls only; prices = first at or after the moment. Grades
+        // made under v1 are dropped once and re-graded from market prices (the chain still has every call).
+        if (p.getInt("grades_schema", 1) < GRADES_SCHEMA) {
+            p.edit().remove("grades").remove("grade_fails").putInt("grades_schema", GRADES_SCHEMA).apply()
+        }
+    }
+
     var address: String?
         get() = p.getString("address", null)
         set(v) = p.edit().putString("address", v).apply()
@@ -63,6 +71,7 @@ class Store(context: Context) {
 
     companion object {
         const val MAX_GRADE_TRIES = 4
+        const val GRADES_SCHEMA = 2
 
         fun writeCalls(calls: List<OnChainCall>): String = JSONArray().apply {
             calls.forEach { put(JSONObject().put("sig", it.signature).put("t", it.blockTime).put("memo", it.call.toMemo())) }

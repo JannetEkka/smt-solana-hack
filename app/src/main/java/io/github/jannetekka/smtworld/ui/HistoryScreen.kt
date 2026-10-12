@@ -54,7 +54,7 @@ private fun ScoreCard(s: UiState) = SectionCard {
         ScoreCell("SMT", s.scoreSmt, Modifier.weight(1f))
     }
     Note("Each call is graded on the price move ${io.github.jannetekka.smtworld.clockin.ClockInCall.HORIZON_HOURS} hours later. " +
-        "When SMT is sitting out, its lean is graded. When its personas cancel out or its feed is old, SMT isn't scored.")
+        "SMT is scored only when it makes a real call (LONG or SHORT). When it sits out, it isn't scored.")
 }
 
 @Composable
@@ -90,7 +90,8 @@ private fun CallRow(c: OnChainCall, s: UiState, openUrl: (String) -> Unit, onSha
     } else {
         Row {
             Text("You: ${outcomeMark(g.you)}", color = outcomeColor(g.you), modifier = Modifier.weight(1f))
-            Text("SMT: ${outcomeMark(g.smt)}", color = outcomeColor(g.smt), modifier = Modifier.weight(1f))
+            Text(if (g.smt == io.github.jannetekka.smtworld.clockin.Outcome.NOT_SCORED && !Grading.isRealCall(c.call.smtAction)) "SMT: sat out"
+                 else "SMT: ${outcomeMark(g.smt)}", color = outcomeColor(g.smt), modifier = Modifier.weight(1f))
         }
         Note("${Format.price(g.entryPx)} → ${Format.price(g.exitPx)} (${g.source})")
         if (g.memoMismatch) Note("This memo's price didn't match the market's, so it isn't on the leaderboard.", Down)

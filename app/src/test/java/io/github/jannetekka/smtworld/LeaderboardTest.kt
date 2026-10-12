@@ -14,7 +14,8 @@ import org.junit.Test
 class LeaderboardTest {
     private var n = 0
     private fun entry(player: String, coin: String, you: Dir, t: Long, lean: Lean = Lean.DOWN) =
-        Leaderboard.Entry(OnChainCall("sig${n++}", t, ClockInCall(coin, you, 100.0, "binance", lean, 30, "WAIT")), player)
+        Leaderboard.Entry(OnChainCall("sig${n++}", t, ClockInCall(coin, you, 100.0, "binance", lean, 30,
+            when (lean) { Lean.UP -> "LONG"; Lean.DOWN -> "SHORT"; Lean.FLAT -> "WAIT" })), player)
 
     @Test fun ranksByHitRateOnlyAfterEnoughGradedCalls() {
         val alice = (0 until 4).map { entry("alice", "BTC", Dir.UP, 10_000L * it) }      // 4 calls, price goes up: 4/4

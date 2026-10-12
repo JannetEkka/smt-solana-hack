@@ -57,40 +57,43 @@ object Prices {
     fun spot(coin: String): Quote = spotAll()[coin] ?: throw IllegalStateException("no price for $coin")
 
     /**
-     * The price at a past moment from one named source, or null if that source has no data yet.
-     * [notBefore]: only a price from at or after the moment counts (grading the end of a horizon
-     * on an earlier price would grade a shorter move). Binance's 1-minute candle already is.
+     * The price at a past moment from one named source: the FIRST price at or after it, read the
+     * same way at both ends of a call, so neither end is a price the caller had already seen.
+     * Null when that source has no such price yet. (Ported from SMT World's Calls tab, whose
+     * /code-review of 10-07 found the 45-minute CoinGecko window missed about a quarter of calls.)
      */
-    fun at(coin: String, epochSec: Long, source: String, notBefore: Boolean = false): Quote? = when (source) {
-        BINANCE -> binanceAt(coin, epochSec, notBefore)
-        COINGECKO -> coingeckoAt(coin, epochSec, notBefore)
+    fun at(coin: String, epochSec: Long, source: String): Quote? = when (source) {
+        BINANCE -> binanceAt(coin, epochSec)
+        COINGECKO -> coingeckoAt(coin, epochSec)
         else -> null
     }
 
-    /** The 1-minute candle that opens at or after the moment; its open is the price then. */
-    private fun binanceAt(coin: String, epochSec: Long, notBefore: Boolean): Quote? {
+    /** CoinGecko's range data is 5-minute inside the last day and hourly beyond it. */
+    const val CG_WINDOW_S = 3900L
+
+    /** The open of the 1-minute candle starting on the next whole minute, and only that candle (not one after a gap). */
+    private fun binanceAt(coin: String, epochSec: Long): Quote? {
         if (coin !in COINS) return null                    // SKR isn't listed on Binance
-        // notBefore: the candle opening at or after the moment (the end of a horizon).
-        // Otherwise the candle containing the moment (a call's entry).
-        val start = if (notBefore) epochSec else epochSec / 60 * 60
+        val start = ceilMinute(epochSec)
         val arr = JSONArray(Http.get("$BN/klines?symbol=${coin}USDT&interval=1m&startTime=${start * 1000}&limit=1"))
         if (arr.length() == 0) return null
-        return Quote(arr.getJSONArray(0).getString(1).toDouble(), BINANCE)
+        val k = arr.getJSONArray(0)
+        if (k.getLong(0) != start * 1000) return null
+        return k.getString(1).toDouble().takeIf { it > 0 }?.let { Quote(it, BINANCE) }
     }
 
-    /** CoinGecko's nearest point within 45 minutes (5-minute data for the last day, hourly before). */
-    private fun coingeckoAt(coin: String, epochSec: Long, notBefore: Boolean): Quote? {
+    /** CoinGecko's first point at or after the moment, within [CG_WINDOW_S]. */
+    private fun coingeckoAt(coin: String, epochSec: Long): Quote? {
         val id = CG_IDS[coin] ?: return null
-        val o = JSONObject(Http.get("$CG/coins/$id/market_chart/range?vs_currency=usd&from=${epochSec - 2700}&to=${epochSec + 2700}"))
+        val o = JSONObject(Http.get("$CG/coins/$id/market_chart/range?vs_currency=usd&from=$epochSec&to=${epochSec + CG_WINDOW_S}"))
         val prices = o.optJSONArray("prices") ?: return null
-        var best: Pair<Long, Double>? = null
-        for (i in 0 until prices.length()) {
-            val p = prices.getJSONArray(i)
-            val t = p.getLong(0) / 1000
-            if (notBefore && t < epochSec - 60) continue
-            val dt = kotlin.math.abs(t - epochSec)
-            if (best == null || dt < best.first) best = dt to p.getDouble(1)
-        }
-        return best?.let { Quote(it.second, COINGECKO) }
+        return firstAtOrAfter((0 until prices.length()).map { prices.getJSONArray(it).let { p -> p.getLong(0) / 1000 to p.getDouble(1) } }, epochSec)
+            ?.let { Quote(it, COINGECKO) }
     }
+
+    fun ceilMinute(epochSec: Long) = (epochSec + 59) / 60 * 60
+
+    /** The earliest positive price at or after [epochSec] and within [CG_WINDOW_S] of it. */
+    fun firstAtOrAfter(points: List<Pair<Long, Double>>, epochSec: Long): Double? =
+        points.filter { (t, v) -> t >= epochSec && t <= epochSec + CG_WINDOW_S && v > 0 }.minByOrNull { it.first }?.second
 }
