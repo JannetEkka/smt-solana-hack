@@ -1,5 +1,6 @@
 package io.github.jannetekka.smtworld
 
+import com.solana.mobilewalletadapter.clientlib.protocol.JsonRpc20Client
 import io.github.jannetekka.smtworld.solana.WalletErrors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -36,5 +37,25 @@ class WalletErrorsTest {
         assertEquals("$failed · Scenario closed while connecting", WalletErrors.detail(failed, e))
         assertEquals(timedOut, WalletErrors.detail(timedOut, null))
         assertEquals("$timedOut · TimeoutException", WalletErrors.detail(timedOut, java.util.concurrent.TimeoutException()))
+    }
+
+    // What Jannet's phone showed on 12 Oct (v0.3.1): Solflare answered -1 inside MWA's
+    // "Failed establishing local association" wrapper.
+    private fun walletSaid(code: Int, text: String) =
+        ExecutionException(JsonRpc20Client.JsonRpc20RemoteException(code, text, null))
+
+    @Test fun aRefusedSavedSessionIsAnAuthFailureNotAReachFailure() {
+        val e = walletSaid(-1, "authorization request failed")
+        assertTrue(WalletErrors.isAuthFailure(failed, e))
+        assertTrue(WalletErrors.friendly(failed, e).startsWith("The wallet didn't authorize this app"))
+        assertTrue(WalletErrors.isAuthFailure("Auth token invalid", null))
+        assertFalse(WalletErrors.isAuthFailure(failed, null))
+        assertFalse(WalletErrors.isAuthFailure(timedOut, java.util.concurrent.TimeoutException()))
+        assertTrue(WalletErrors.detail(failed, e).contains("authorization request failed"))
+    }
+
+    @Test fun aWalletOnTheWrongClusterSaysSwitchToDevnet() {
+        assertEquals("Your wallet isn't on Devnet. Switch it to Devnet, then tap Clock in again.",
+            WalletErrors.friendly(failed, walletSaid(-7, "cluster not supported")))
     }
 }

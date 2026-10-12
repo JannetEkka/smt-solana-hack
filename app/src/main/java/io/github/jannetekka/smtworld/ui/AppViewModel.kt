@@ -247,7 +247,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                 is TransactionResult.NoWalletFound -> _state.update { it.copy(walletApp = false, send = SendState.Idle) }
                 is TransactionResult.Failure -> {
                     Log.w(Repo.TAG, "[CONNECT] failed: ${r.message}", r.e)
-                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message), WalletErrors.detail(r.message, r.e))) }
+                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message, r.e), WalletErrors.detail(r.message, r.e))) }
                 }
             }
         }
@@ -317,7 +317,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
                 is TransactionResult.NoWalletFound -> _state.update { it.copy(walletApp = false, send = SendState.Idle) }
                 is TransactionResult.Failure -> {
                     Log.w(Repo.TAG, "[CLOCKIN] failed: ${r.message}", r.e)
-                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message), WalletErrors.detail(r.message, r.e))) }
+                    _state.update { it.copy(send = SendState.Failed(WalletErrors.friendly(r.message, r.e), WalletErrors.detail(r.message, r.e))) }
                 }
             }
         }
@@ -346,25 +346,29 @@ class AppViewModel(app: Application) : AndroidViewModel(app), UiActions {
         _state.update { it.copy(address = addr) }
     }
 
-    /** A wallet can drop our saved session; on "Auth token invalid" forget it and ask once more. */
+    /**
+     * Two safe retries, both before anything is signed (never after signing: no double send).
+     * A wallet starting cold (or asking for its PIN) can miss MWA's 10-second window to connect
+     * back: retry once, after the wallet's first screen has closed. A wallet that refuses our
+     * saved session (its auth token expired or was revoked) answers -1: forget the token and
+     * authorize afresh, so the wallet shows its connect sheet instead of bouncing back.
+     */
     private suspend fun <T> withAuthRetry(op: suspend () -> TransactionResult<T>): TransactionResult<T> {
-        var first = guarded(op)
-        // A wallet starting cold (or asking for its PIN) can miss MWA's 10-second window to open
-        // the local connection. Nothing was signed at that stage, so one retry is safe; the
-        // wallet is awake by then. Never retried after signing has started (no double send).
-        if (first is TransactionResult.Failure && WalletErrors.isAssociationFailure(first.message)) {
-            Log.w(Repo.TAG, "[WALLET] association failed (${first.message}); retrying once in 2 s")
-            // Let the wallet's first screen finish closing, so the retry isn't a second request
-            // landing on a wallet that is still tearing down the first one.
+        // -1 without a saved token is the person declining the connect sheet: never ask twice.
+        val usedSavedSession = wallet.authToken != null
+        var r = guarded(op)
+        if (r is TransactionResult.Failure && !WalletErrors.isAuthFailure(r.message, r.e) && WalletErrors.isAssociationFailure(r.message)) {
+            Log.w(Repo.TAG, "[WALLET] association failed (${r.message}); retrying once in 2 s")
             delay(2000)
-            first = guarded(op)
+            r = guarded(op)
         }
-        if (first is TransactionResult.Failure && first.message.contains("Auth token", ignoreCase = true)) {
+        if (usedSavedSession && r is TransactionResult.Failure && WalletErrors.isAuthFailure(r.message, r.e)) {
+            Log.w(Repo.TAG, "[WALLET] the wallet refused the saved session (${WalletErrors.detail(r.message, r.e)}); authorizing afresh")
             wallet.authToken = null
             store.authToken = null
-            return guarded(op)
+            r = guarded(op)
         }
-        return first
+        return r
     }
 
     /**
